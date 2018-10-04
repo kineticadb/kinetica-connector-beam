@@ -1,0 +1,1 @@
+docker run -d --rm --name spark-cluster --network beamnet -p 8082:8080 -p 8083:8083 -p 7077:7077 -v c:/Users/apwyn/Documents/eclipse-workspace/apache-beam-kineticaio/docker/sparkCluster/mnt/spark-logs:/opt/spark-2.3.0-bin-hadoop2.7/logs apwynne/spark-cluster

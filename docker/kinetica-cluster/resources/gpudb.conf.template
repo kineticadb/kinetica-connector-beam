@@ -1,0 +1,734 @@
+# ---------------------------------------------------------------------------
+# GPUdb configuration file.
+# ---------------------------------------------------------------------------
+
+[gaia]
+
+# ---------------------------------------------------------------------------
+# Network setup
+
+# Head HTTP server IP address.
+# Set to the publicly accessible IP address of the first process, rank 0.
+
+head_ip_address = 172.19.0.10
+
+# Head HTTP server port to use for 'head_ip_address'.
+
+head_port = 9191
+
+# Set to true to use HTTPS; if true then https_key_file and https_cert_file must be provided
+use_https = false
+
+# Files containing the SSL private Key and the SSL certificate for.
+# If required, a self signed certificate (expires after 10 years) can be generated via the command ::
+##
+## openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem
+https_key_file = 
+https_cert_file = 
+
+# Value to return via Access-Control-Allow-Origin HTTP header (for Cross-Origin Resource Sharing).
+# Set to empty to not return the header and disallow CORS.
+http_allow_origin = *
+
+# Start a httpd server as a proxy to handle LDAP and/or Kerberos authentication.
+# Each host will run a httpd server and access to each rank is available through
+# http://host:8082/gpudb-1, where port 8082 is defined by 'httpd_proxy_port'.
+# NOTE: HTTPd external endpoints are not affected by the use_https parameter above.
+#       If you wish to enable https on HTTPd, you must edit the
+#       /opt/gpudb/httpd/conf/httpd.conf and setup https as per the Apache HTTPd
+#       documentation at https://httpd.apache.org/docs/2.2/
+enable_httpd_proxy = false
+
+# TCP port that the httpd auth proxy server will listen on if 'enable_httpd_proxy' is true.
+httpd_proxy_port = 8082
+
+# Set to true if the httpd auth proxy server is configured to use HTTPS.
+httpd_proxy_use_https = false
+
+# Internal use IP address of the head HTTP server, rank 0.
+# Set to either a second internal network accessible by all ranks or to ${gaia.head_ip_address}.
+rank0_ip_address = ${gaia.rank0.host}
+
+# Trigger ZMQ publisher server port (-1 to disable), uses the 'head_ip_address' interface.
+trigger_port = 9001
+
+# Set monitor ZMQ publisher server port (-1 to disable), uses the 'head_ip_address' interface.
+set_monitor_port = 9002
+
+# Set monitor ZMQ publisher internal proxy server port (-1 to disable), uses the 'head_ip_address'
+# interface. Disabling this port effectively prevents worker nodes from publishing set monitor
+#  notifications when multi-head ingest is enabled (see 'enable_worker_http_servers').
+set_monitor_proxy_port = 9003
+
+# Enable ODBC connector
+enable_odbc_connector = true
+
+# Enable Reveal runtime
+enable_reveal = true
+
+# Internal communication ports
+global_manager_port_one = 5552
+
+# Host manager synchronization port
+global_manager_pub_port = 5553
+
+# Http port for web portal of the host manager
+host_manager_http_port = 9300
+
+# Enable worker HTTP servers, each process runs its own server for direct ingest.
+#enable_worker_http_servers = false
+enable_worker_http_servers = true
+
+# Optionally, specify the worker HTTP server ports.
+# The default is to use (head_port + rank#) for each worker process where
+
+# rank number is from 1 to number of ranks in 'rankN.host' below.
+
+#rank1.worker_http_server_port = 9192
+#rank2.worker_http_server_port = 9193
+
+
+# Optionally, specify a public URL for each worker HTTP server that clients should
+# use to connect for multi-head operations. Note: If specified for any ranks, a public
+# URL must be specified for all ranks.
+
+#rank0.public_url = 
+#rank1.public_url = 
+#rank2.public_url = 
+
+# Specify the hosts to run each rank worker process in the cluster on.
+# For a single machine system you may use '127.0.0.1', but if using two or more machines
+# you must specify a hostname or IP address for each rank that is accessible to the other ranks.
+# See also 'head_ip_address' and 'rank0_ip_address'.
+
+rank0.host = 172.19.0.10
+rank1.host = 172.19.0.10
+rank2.host = 172.19.0.11
+
+
+# Specify the TCP ports each rank will use to communicate with each other.
+# If the port for any rankN is not specified the port will be assigned to
+# rank0.communicator_port + N.
+
+rank0.communicator_port = 6555
+#rank1.communicator_port = 6556
+#rank2.communicator_port = 6557
+
+
+# Enables compression of inter-node network data transfers.
+compress_network_data = false
+
+# Communicator type (either MPI or ZMQ)
+communicator_type = ZMQ
+
+# ---------------------------------------------------------------------------
+# Security
+
+# Require authentication.
+require_authentication = false
+
+# Enable authorization checks.
+enable_authorization = false
+
+# Minimum password length.
+min_password_length = 0
+
+# Enable external (LDAP, Kerberos, etc.) authentication. User IDs of
+# externally-authenticated users must be passed in via the REMOTE_USER HTTP
+# header from the authentication proxy. May be used in conjuntion with the
+# enable_httpd_proxy setting above for an integrated external authentication
+# solution.
+#
+# IMPORTANT: DO NOT ENABLE unless external access to GPUdb ports
+# has been blocked via firewall AND the authentication proxy is
+# configured to block REMOTE_USER HTTP headers passed in from clients.
+enable_external_authentication = false
+
+# Automatically create accounts for externally-authenticated users.
+# If enable_external_authentication is false, this setting has no effect.
+# Note that accounts are not automatically deleted if users are removed
+# from the external authentication provider and will be orphaned.
+auto_create_external_users = false
+
+# Automatically add roles passed in via the KINETICA_ROLES HTTP header to
+# externally-authenticated users. Specified roles that do not exist are
+# ignored. If enable_external_authentication is false, this setting has no
+# effect.
+#
+# IMPORTANT: DO NOT ENABLE unless the authentication proxy is
+# configured to block KINETICA_ROLES HTTP headers passed in from clients.
+auto_grant_external_roles = false
+
+# Comma-separated list of roles to revoke from externally-authenticated
+# users prior to granting roles passed in via the KINETICA_ROLES HTTP
+# header, or * to revoke all roles. Preceding a role name with an !
+# overrides the revocation (e.g. *,!foo revokes all roles except foo).
+# Leave blank to disable. If either enable_external_authentication or
+# auto_grant_external_roles is false, this setting has no effect.
+auto_revoke_external_roles = 
+
+# ---------------------------------------------------------------------------
+# Auditing
+
+# This section controls the request auditor, which will audit all requests
+# received by the server in full or in part based on the settings below.
+# The output location of the audited requests is controlled via settings in
+# the Auditing section of gpudb_logger.conf.
+
+# enable_audit: Controls whether request auditing is enabled. If set to true,
+# the following information is audited for every request: Job ID, URI, User,
+# and Client Address. The settings below control whether additional
+# information about each request is also audited. If set to false, all
+# auditing is disabled.
+enable_audit = false
+
+# audit_headers: Controls whether HTTP headers are audited for each request.
+# If enable_audit is false this setting has no effect.
+audit_headers = false
+
+# audit_body: Controls whether the body of each request is audited (in JSON
+# format). If enable_audit is false this setting has no effect. Note: For
+# requests that insert data records, this setting does not control the
+# auditing of the records being inserted, only the rest of the request body;
+# see audit_data below to control this.
+audit_body = false
+
+# audit_data: Controls whether records being inserted are audited (in JSON
+# format) for requests that insert data records. If either enable_audit or
+# audit_body is false, this setting has no effect. Note: Enabling this
+# setting during bulk ingestion of data will rapidly produce very large
+# audit logs and may cause disk space exhaustion; use with caution.
+audit_data = false
+
+# lock_audit: Controls whether the above audit settings can be altered at
+# runtime via the /alter/system/properties endpoint. In a secure
+# environment where auditing is required at all times, this should be set
+# to true to lock the settings to what is set in this file.
+lock_audit = false
+
+# ---------------------------------------------------------------------------
+# Licensing
+
+# The license key to authorize running.
+license_key = 
+
+# ---------------------------------------------------------------------------
+# Process and thread configuration
+
+# Set min number of web server threads to spawn. (default: 2)
+min_http_threads = 2
+
+# Set max number of web server threads to spawn. (default: 64)
+max_http_threads = 64
+
+# Set the number of parallel jobs to create for multi-child set calculations.
+# Use -1 to use the max number of threads (not recommended).
+sm_omp_threads = 2
+# Set the number of parallel calculation threads to use for data processing.
+# Use -1 to use the max number of threads (not recommended).
+kernel_omp_threads = 4
+
+# Set the maximum number of threads (both workers and masters) to be passed
+# to TBB on initialization.  Generally speaking, max_tbb_threads_per_rank - 1
+# TBB workers will be created.
+max_tbb_threads_per_rank = -1
+
+# Set the number of TOMs per rank, the number of data container shards per rank.
+toms_per_rank = 1
+
+# Set the number of TaskProcessors per TOM, CPU data processors.
+tps_per_tom = 4
+# Set the number of TaskCalculators per TOM, GPU data processors.
+tcs_per_tom = 4
+
+# Set the number of Backup TOMs, per TOM.
+persistence_replication_factor = 1
+
+# ---------------------------------------------------------------------------
+# Hardware configuration
+
+# Specify the GPU to use for all calculations on the HTTP server node, rank 0.
+# Note that the rank0 GPU may be shared with another rank.
+rank0.gpu = 0
+
+# Set GPU devices for each worker rank's TaskCalculators, see 'tcs_per_tom'.
+# If no gpus are specified, each rank's TaskCalculators will share the same
+# GPU and each rank will round-robin the available gpus on the system.
+# Ideally, each rank should use a single specified GPU to allow data caching.
+# Add rankN.taskcalc_gpu as needed, where N ranges from 1 to the highest
+# index in 'rankN.host'.
+# The taskcalc GPU indexes are in the order of nvidia-smi's listing unless the
+# environment variable CUDA_VISIBLE_DEVICES=2,3 (for example) is set.
+# In this case the taskcalc_gpu specify the cuda index, 0 or 1, into the
+# 2nd and 3rd GPU shown in nvidia-smi's list.
+#
+# For the example below the successively created taskcalcs use the 0,1,2 GPU devices respectively ::
+##
+## rank1.taskcalc_gpu = 0 1 2
+#
+
+rank1.taskcalc_gpu = 
+rank2.taskcalc_gpu = 
+
+
+# Set the head HTTP rank0 numa node(s).
+# If left empty there will be no thread affinity or preferred memory node.
+# The node list may be either a single node number or a range, E.G. 1-5,7,10.
+# If there will be many simultaneous users, specify as many nodes as possible
+#   that won't overlap the rank1+ worker numa nodes that the GPUs are on.
+# If there will be few simultaneous users and WMS speed is important, choose
+#   the numa node the 'rank0.gpu' is on.
+
+rank0.numa_node = 
+
+# Set each worker rank's preferred base numa node for CPU affinity and memory
+# allocation. The 'rankN.base_numa_node' is the node or nodes that non-data
+# intensive threads will run in. These nodes do not have to be the same numa
+# nodes that the GPU specified by the corresponding 'rankN.taskcalc_gpu' is on
+# for best performance, though they should be relatively near to their
+# 'rankN.data_numa_node'.
+# There will be no CPU thread affinity or preferred node for memory allocation
+# if not specified or left empty.
+# The node list may be a single node number or a range, E.G. 1-5,7,10.
+
+rank1.base_numa_node = 
+rank2.base_numa_node = 
+
+
+# Set each worker rank's preferred data numa node for CPU affinity and memory
+# allocation. The 'rankN.data_numa_node' is the node or nodes that data intensive
+# threads will run in and should be set to the same numa node that the GPU
+# specified by the corresponding 'rankN.taskcalc_gpu' is on for best performance.
+# If the 'rankN.taskcalc_gpu' is specified the 'rankN.data_numa_node' will be
+# automatically set to the node the GPU is attached to, otherwise
+# there will be no CPU thread affinity or preferred node for memory allocation
+# if not specified or left empty.
+# The node list may be a single node number or a range, E.G. 1-5,7,10.
+
+rank1.data_numa_node = 
+rank2.data_numa_node = 
+
+
+# ---------------------------------------------------------------------------
+# General configuration
+
+# Enable JobManager to enforce processing of requests in the order received
+enable_job_manager = true
+
+# Tables with these names will not be deleted (comma separated).
+protected_sets = MASTER,_MASTER,_DATASOURCE
+
+# Time-to-live in minutes of non-protected tables before they are deleted.
+default_ttl = 20
+
+# Time in minutes for an unused data tables to stay in memory.
+memory_ttl = 9999999
+
+# Disallow the 'clear/table' command to clear all tables.
+disable_clear_all = true
+
+# Threshold number of points (per-TOM) at which point rendering switches to fast mode.
+point_render_threshold = 100000
+
+# Threshold for the number of points (per-TOM) after which symbology rendering falls back to regular rendering
+symbology_render_threshold = 10000
+
+# Maximum size (in pixels) heatmap that can be generated. This reserves MHS*MHS*8 bytes of GPU memory at rank0
+max_heatmap_size = 3072
+
+# The image width/height (in pixels) of svg symbols cached in the OpenGL symbol cache.
+symbol_resolution = 100
+
+# The width/height (in pixels) of an OpenGL texture which caches symbol images for OpenGL rendering.
+symbol_texture_size = 4000
+
+# Enable (if true) HW-accelerated OpenGL renderer instead of Cairo renderer (software renderer).
+enable_opengl_renderer = true
+
+# Enable level-of-details rendering for fast interaction with a large WKT polygon data.
+# Only available for the OpenGL renderer (enable_opengl_renderer = true).
+enable_lod_rendering = false
+
+# Longitude and latitude ranges of geospatial data for which level-of-details representations
+# are being generated. The order of parameters are min_longitude, min_latitude,
+# max_longitude, and max_latitude. The default values span over the World, but
+# the level-of-details rendering becomes more efficient when the precise extent of geospatial data
+# is specified.
+lod_data_extent = -180 -90 180 90
+
+# The number of subregions in horizontal and vertical geospatial data extent.
+# The default parameters divide the World as subregions of 30 degree (lon.) x 30 degree (lat.)
+lod_subregion_num = 12 6
+
+# A base image resolution (width and height in pixels) at which a subregion would be rendered in a global view
+# spanning over the whole dataset. Based on this resolution level-of-details representations are generated
+# for the polygons located in the subregion.
+lod_subregion_resolution = 512 512
+
+# The maximum number of levels in the level of details rendering. As the number increases,
+# level-of-details rendering becomes effective at higher zoom levels, but it may increase memory usage
+# for storing level-of-details representations.
+max_lod_level = 8
+
+# This parameter determines how much shape data are pre-processed for level-of-details rendering
+# during data insert/load or processed on-the-fly in rendering time.
+# This parameter is a trade off between speed and memory. The higher the value, the faster
+# level-of-details rendering is but uses more memory for storing processed shape data.
+# The maximum level is 10 (most shape data are pre-processed) and the minimum level is 0.
+lod_preprocessing_level = 5
+
+# This is the upper bound of system memory usage (in megabytes) for shape processing to generate
+# level-of-details representations on each rank. This parameter overrides lod_preprocessing_level,
+# i.e. stops shape pre-processing, when the memory usage reaches this upper bound.
+# If the value is set to zero, shape processing is performed without memory usage restriction.
+max_memory_for_shape_processing = 8192
+
+# Enable (if true) or disable pinned memory; disabling pinned memory uses malloc
+# and will result in slower transfer times to the GPU, but allows more system memory to be used.
+enable_pinned_memory = false
+
+# Size in bytes of the pinned memory pool per-rank process to speed copying data to the GPU.
+# Set to 0 to disable and 'enable_pinned_memory' must be 'false' if enabled.
+pinned_memory_pool_size =1000000000
+
+# Maximum host memory allocation limit per rank, 0 means no limit.
+# Specify the default maximum allowed memory allocation size for each rank
+# and optionally override the limit for individual ranks that are running
+# on machines with either more or less memory than the others.
+# This is hard limit and requests requiring large allocations will be
+# refused. Allow for at least 1GB of extra memory per rank and account for
+# the number of other GPUdb ranks and processes running on each machine.
+##
+## Example, each rank will allocate ~128GB of memory, but rank three and four
+#  will allocate up to ~256GB. ::
+#
+##
+##   memory_allocation_limit_mb = 128000
+##   rank3.memory_allocation_limit_mb = 256000
+##   rank4.memory_allocation_limit_mb = 256000
+#
+
+memory_allocation_limit_mb = 0
+
+# Enable (if true) multiple kernels to run concurrently on the same GPU
+concurrent_kernel_execution = false
+
+# Maximum number of kernels that can be running at the same time on a given
+# GPU. Set to 0 for no limit. Only takes effect if concurrent_kernel_execution = true
+max_concurrent_kernels = 4
+
+# Enable (if true) the GPU memory pre-allocator
+enable_gpu_allocator = true
+
+# Maximum amount of GPU memory to allocate in bytes, set to -1 to allocate the maximum.
+# Only works if enable_gpu_allocator is true.
+max_gpu_memory = -1
+
+# Enable (if true) fast polling on the worker ranks (at the costof 100% cpu usage)
+fast_polling = false
+
+# Maximum number of records that data retrieval requests such as
+# /get/records and /aggregate/groupby will return per request.
+max_get_records_size = 20000
+
+# Timeout (in minutes) for filter-type requests
+request_timeout = 20
+
+# Maximum amount of temporary memory (in bytes) a query can allocate (per-tom); if more is needed the query will fail
+max_query_temp_memory = 64000000000
+
+# Set an optional executable command that will be run once when Kinetica is ready for client requests.
+# This can be used to perform any initialization logic that needs to be run before clients connect.
+# It will be run as the gpudb user, so you must ensure that any required permissions are set on the
+# file to allow it to be executed.  If the command cannot be executed or returns a non zero error code,
+# then Kinetica will be stopped.  Output from the startup script will be logged to
+# /opt/gpudb/core/logs/gpudb-on-start.log (and its dated relatives).  The gpudb_env.sh script is
+# run directly before the command, so the path will be set to include the supplied python runtime.
+# Example:
+# on_startup_script = /home/gpudb/on-start.sh param1 param2 ...
+on_startup_script = 
+
+# Timeout (in seconds) to wait for each database subsystem to startup.
+# Subsystems include the ODBC, stats and httpd servers, as well as external text-search ranks.
+timeout_startup_subsystem = 60
+
+# Timeout (in seconds) to wait for each database subsystem to exit gracefully before it is force killed.
+timeout_shutdown_subsystem = 20
+
+# Timeout (in seconds) to wait for a rank to exit gracefully before it is force killed.
+# Machines with slow disk drives may require longer times and data may be lost if drive is not responsive.
+timeout_shutdown_rank = 300
+
+# ---------------------------------------------------------------------------
+# Tomcat Configuration
+
+enable_tomcat = true
+
+# ---------------------------------------------------------------------------
+# Text search configuration
+
+# Enable text search.
+enable_text_search = true
+
+# Use an external text server instead of an internal one.
+# Be sure to update the rankN.text_index_address and rankN.text_search_address params below.
+use_external_text_server = false
+
+# Number of text indices to start for each rank
+text_indices_per_tom = 2
+
+# Searcher refresh intervals - specifies the maximum delay (in
+# seconds) between writing to the text search index and being able to
+# search for the value just written.  A value of 0 insures that writes
+# to the index are immediately available to be searched.  A more
+# nominal value of 100 should improve ingest speed at the cost
+# of some delay in being able to text search newly added values.
+
+text_searcher_refresh_interval = 20
+
+##
+# External text server addresses to use if ::
+##
+##  'use_external_text_server = true'.
+##
+##
+## Specify one for each worker rank N, where N ranges from 1 to highest index in 'rankN.host'.
+# Add the appropriate number of rankN.text_index_address for each worker rank as needed.
+# The addresses can be a fully qualified TCP address:port for remote servers or
+# an IPC address for local text index servers.
+#
+# If no addresses are specified the text index servers will use IPC and be started
+# on the machine where the rank is running as shown in the IPC example below.
+# You should either specify all addresses or none to get the defaults.
+#
+# Example for remote or TCP servers::
+##
+##  rank1.text_index_address  = tcp://127.0.0.1:4000
+##  rank2.text_index_address  = tcp://127.0.0.1:4001
+##  ... up to rank[N].text_index_address = ...
+##
+##
+# Example for local IPC servers::
+##
+##  rank1.text_index_address  = ipc:///tmp/gpudb-text-index-1
+##  rank2.text_index_address  = ipc:///tmp/gpudb-text-index-2
+##  ... up to rank[N].text_index_address = ...
+##
+##
+## Where '/tmp/gpudb-text-index-1' is the name of the socket file to create.
+
+rank1.text_index_address  = ipc:///tmp/gpudb-text-index-1
+rank2.text_index_address  = ipc:///tmp/gpudb-text-index-2
+
+# ---------------------------------------------------------------------------
+# Data persistence storage configuration and directories
+
+# Specify a base directory to store persistence data files.
+persist_directory = /opt/gpudb/persist
+
+# Base directory to store data vectors.
+data_directory = ${gaia.persist_directory}
+# Base directory to store added objects.
+object_directory = ${gaia.persist_directory}
+# Base directory to store hashed strings.
+sms_directory = ${gaia.persist_directory}
+# Base directory to store the text search index.
+text_index_directory = ${gaia.persist_directory}
+
+# Directory for GPUdb to use to store temporary files.
+# Must be a fully qualified path, have at least 100Mb of free space, and execute permission.
+temp_directory = /tmp
+
+# Path to script that echos the password for mounting encrypted persistence dirs.
+# Note that all directories must be encrypted with the same password.
+# Leave blank if the persistence directories are not encrypted or
+# if the directories will be mounted before GPUdb starts.
+persist_encryption_pass_command = 
+
+# Synchronous persistence file writing instead of asynchronous writing.
+persist_sync = false
+
+# Force syncing the persistence files every N minutes if out of sync.
+# Note that files are always opportunistically saved,
+# this simply enforces a maximum time a file can be out of date.
+# Set to a very high number to disable.
+persist_sync_time = 5
+
+# If true then updates are applied to IndexDB synchronously (slower)
+# If false then updates are asynchronous (faster but less safe)
+synchronous_update = true
+
+# When starting, 'always' load all the data into memory before accepting requests,
+# load the necessary data to start, but load the remainder lazily, or
+# only load the data 'on_demand' as requests use it.
+# load_vectors_on_start = 'always' / 'lazy' / 'on_demand'
+load_vectors_on_start = always
+
+# Table of contents size for IndexedDb object file store
+indexdb_toc_size = 1000000
+# Maximum number of open files for IndexedDb object file store
+indexdb_max_open_files = 128
+
+# Maximum number of open files (per-TOM) for the SMS (string) store
+sms_max_open_files = 128
+
+#
+# Chunk size (0 disables chunking)
+chunk_size = 8000000
+
+#
+# Max join dimensions is the maximum number of tables in a joined table that can be
+# accessed by a query and are not equated by a foreign-key to primary-key equality predicate.
+max_join_query_dimensions = 2
+
+#
+# Determines whether to execute kernels on host (cpu) or device (gpu). Possible values are:
+# 'default' : engine decides
+# 'host'    : execute only host
+# 'device'  : execute only device
+# <integer> : execute on the host if chunked column has equal or fewer rows,
+#             otherwise execute on device.
+execution_mode = device
+
+# ---------------------------------------------------------------------------
+# Stats logging configuration
+
+# Run a stats server to collect information about GPUdb and machines it is running on.
+enable_stats_server = true
+
+# Stats server ip address (run on head node) default port is 2003
+stats_server_ip_address = ${gaia.rank0_ip_address}
+stats_server_port = 2003
+
+# Status server namepace - should be a machine identifier
+stats_server_namespace = gpudb
+
+# ---------------------------------------------------------------------------
+# Procs
+
+# Enable procs
+enable_procs = true
+
+# Directory where proc files are stored at runtime. Must be a fully qualified
+# path with execute permission. If not specified, temp_directory will be used.
+proc_directory = /opt/gpudb/procs
+
+# Directory where data transferred to and from procs is written. Must be a
+# fully qualified path with sufficient free space for required volume of data.
+# If not specified, temp_directory will be used.
+proc_data_directory = /opt/gpudb/procs
+
+# ---------------------------------------------------------------------------
+# KiFS
+
+# Enable access to the KiFS file system from within procs (UDFs). This will
+# create a 'filesystem' collection and an internal 'kifs' user in Kinetica
+# and mount the file system at the mount point specified below. By default,
+# the file system is accessible to the gpudb_proc user; to make it accessible
+# to other users, you must ensure that user_allow_other is enabled in
+# /etc/fuse.conf and add the other users to the gpudb_proc group
+# (sudo usermod -a -G gpudb_proc <user>).
+enable_kifs = false
+
+# Parent directory of the mount point for the KiFS file system. Must be a
+# fully qualified path. The actual mount point will be a subdirectory 'mount'
+# below this directory. Note that this folder must have read, write and
+# execute permissions for the gpudb user and the gpudb_proc group, and it
+# cannot be a path on an NFS.
+kifs_mount_point = /opt/gpudb/kifs
+
+# ---------------------------------------------------------------------------
+# HA
+#
+# At the moment, this section is simply to provide information about if and
+# where HA is running, so that the gpudb startup script can properly create
+# proxy-pass entries for httpd when both HA and httpd are enabled.
+
+# Enable HA.
+enable_ha = false
+
+# Set to true if HA is configured to use HTTPS.
+ha_use_https = false
+
+# Optionally, specify the IP address or hostname of the HA server for each
+# rank. By default, HA servers are assumed to be on the same nodes as their
+# corresponding ranks.
+
+#rank0.ha_host = 
+#rank1.ha_host = 
+#rank2.ha_host = 
+
+# Optionally, specify the port number of the HA server for each rank.
+# By default, the port number for rank 0 is 9191, and the port numbers
+# for other ranks is (rank 0 port + rank #). Note: If HA is enabled,
+# head_port and/or rank#.http_worker_server_port settings may need to be
+# changed to prevent conflicts.
+
+#rank0.ha_port =
+#rank1.ha_port =
+#rank2.ha_port =
+
+# ---------------------------------------------------------------------------
+# Alerts
+
+# Enable the alerting system.
+enable_alerts = true
+
+# Executable to run when an alert condition occurs. This executable will
+# only be run on rank 0 and does not need to be present on other nodes.
+alert_exe = 
+
+# Trigger an alert whenever the status of a host or rank changes. Optionally
+# filter so that only a comma-delimited list of statuses trigger alerts.
+# If a filter is empty every status change will trigger an alert.
+alert_host_status = true
+alert_host_status_filter = fatal_init_error
+alert_rank_status = true
+alert_rank_status_filter = fatal_init_error, not_responding, terminated
+
+# Trigger an alert if a CUDA error occurs on a rank.
+alert_rank_cuda_error = true
+
+# Trigger alerts when we hit a fallback allocator, e.g. host memory is allocated
+# because GPU allocation fails.
+# To prevent a flooding of alerts, if a fallback allocator is hit in bursts, not
+# every single hit will necessarily generate an alert.
+alert_rank_fallback_allocator = true
+
+# Trigger generic error message alerts, in cases of various significant runtime errors.
+alert_error_messages = true
+
+# Trigger an alert if available memory on any given node falls to or below a certain
+# threshold, either absolute (number of bytes) or percentage of total memory.
+# For multiple thresholds, use a comma-delimited list of values.
+alert_memory_absolute = 
+alert_memory_percentage = 20, 10, 5, 1
+
+# Trigger an alert if available disk space on any given node falls to or below a certain
+# threshold, either absolute (number of bytes) or percentage of total disk space.
+# For multiple thresholds, use a comma-delimited list of values.
+alert_disk_absolute = 
+alert_disk_percentage = 20, 10, 5, 1
+
+# The maximum number of triggered alerts guaranteed to be stored at any given time.
+# When this number of alerts is exceeded, older alerts may be discarded to stay within the limit.
+alert_max_stored_alerts = 100
+
+# True if chunk caching enabled
+chunk_cache_enabled = false
+
+# The maximum number of bytes in the chunk cache
+chunk_cache_size = 100000000
+
+# Directory where the trace event and summary files are stored.  Must be a 
+# fully qualified path with sufficient free space for required volume of data.
+trace_directory = /tmp
+
+# The maximum number of trace events to be collected
+trace_event_buffer_size = 1000000
+
+
+# ---------------------------------------------------------------------------
+# Internal developer options
+
+
