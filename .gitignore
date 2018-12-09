@@ -1,0 +1,30 @@
+# --------------------------------------------------
+# Generic ignores
+
+*.d
+*.o
+*.*~
+*.pyc
+*.pyo
+*.png
+*.class
+*.jar
+*.log
+
+_build
+
+# --------------------------------------------------
+# Specific to this project
+
+api/.classpath
+api/.project
+api/.settings/
+api/mvn.log
+api/target
+doc
+target
+
+# For netbeans
+nbproject
+
+
