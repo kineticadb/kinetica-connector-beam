@@ -1,7 +1,7 @@
 GPUdb Beam Connector Changelog
 ==============================
 
-Version 7.0.0.0 - 2018-12-09
+Version 7.0.0.0 - 2019-01-31
 ----------------------------
 
 -   Releasing version

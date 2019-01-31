@@ -13,13 +13,13 @@
   </repositories>
   <properties>
     <beam.version>2.5.0</beam.version>
-    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-6.2-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
+    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.0-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
   </properties>
   <dependencies>
   	<dependency>
   		<groupId>com.gpudb</groupId>
   		<artifactId>gpudb-api</artifactId>
-  		<version>6.2.0</version>
+  		<version>7.0.0.0</version>
   	</dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>

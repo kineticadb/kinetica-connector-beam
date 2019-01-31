@@ -64,7 +64,7 @@ The config below is set up for a subnet of 172.19.0.0/16 but your mileage may va
 
 First we need to create the gpudb.conf file. The build script will copy this into the docker image, so we need to edit that file before building the docker images.
 
-An example file is provided in /docker/kinetica-cluster/resources/gpudb.conf.template for kinetica version 7.0.0.15 - all you need to do is:
+An example file is provided in /docker/kinetica-cluster/resources/gpudb.conf.template for kinetica version 7.0.0.0 - all you need to do is:
 1.	copy /docker/kinetica-cluster/resources/gpudb.conf.template to /docker/kinetica-cluster/resources/gpudb.conf
 2.	edit gpudb.conf and set the license_key parameter
 
