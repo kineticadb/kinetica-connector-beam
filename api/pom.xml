@@ -4,7 +4,7 @@
   <artifactId>apache-beam-kineticaio</artifactId>
   <version>1.0</version>
   <description>IO to read and write with Kinetica database</description>
-  
+
   <repositories>
 	<repository>
 		<id>gpudb-releases</id>
@@ -13,13 +13,13 @@
   </repositories>
   <properties>
     <beam.version>2.5.0</beam.version>
-    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.0-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
+    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.1-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
   </properties>
   <dependencies>
   	<dependency>
   		<groupId>com.gpudb</groupId>
   		<artifactId>gpudb-api</artifactId>
-  		<version>7.0.0.0</version>
+  		<version>[7.1.0.0,7.2.0.0-SNAPSHOT)</version>
   	</dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>
@@ -31,7 +31,7 @@
       <artifactId>slf4j-api</artifactId>
 	  <version>1.7.25</version>
     </dependency>
-	<dependency> 
+	<dependency>
 	  <groupId>ch.qos.logback</groupId>
 	  <artifactId>logback-classic</artifactId>
 	  <version>1.0.13</version>
@@ -107,8 +107,8 @@
       <scope>test</scope>
       <classifier>tests</classifier>
     </dependency>
-  </dependencies>  
-  <build>   
+  </dependencies>
+  <build>
     <plugins>
 		<plugin>
 		  <artifactId>maven-compiler-plugin</artifactId>
@@ -117,7 +117,7 @@
 		    <source>1.8</source>
 		    <target>1.8</target>
 		  </configuration>
-		</plugin>	
+		</plugin>
 		<plugin>
 		  <groupId>org.codehaus.mojo</groupId>
 		  <artifactId>build-helper-maven-plugin</artifactId>
@@ -136,7 +136,7 @@
 		          </resource>
 		        </resources>
 		      </configuration>
-		    </execution> 
+		    </execution>
 		  </executions>
 		</plugin>
 		<plugin>
