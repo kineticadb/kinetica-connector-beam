@@ -64,18 +64,18 @@ The config below is set up for a subnet of 172.19.0.0/16 but your mileage may va
 
 First we need to create the gpudb.conf file. The build script will copy this into the docker image, so we need to edit that file before building the docker images.
 
-An example file is provided in /docker/kinetica-cluster/resources/gpudb.conf.template for kinetica version 7.0.0.0 - all you need to do is:
+An example file is provided in /docker/kinetica-cluster/resources/gpudb.conf.template for kinetica version 7.1.0.0 - all you need to do is:
 1.	copy /docker/kinetica-cluster/resources/gpudb.conf.template to /docker/kinetica-cluster/resources/gpudb.conf
 2.	edit gpudb.conf and set the license_key parameter
 
 This file has the following config :
 
 * license_key = <configure your license key>
-* head_ip_address = 172.19.0.10 # static IP of kinetica-7.0-head docker container
+* head_ip_address = 172.19.0.10 # static IP of kinetica-7.1-head docker container
 * enable_worker_http_servers = true # turn on multi-head ingest support
-* rank0.host = 172.19.0.10 # static IP of kinetica-7.0-head docker container
-* rank1.host = 172.19.0.10 # static IP of kinetica-7.0-head docker container
-* rank2.host = 172.19.0.11 # static IP of kinetica-7.0-worker docker container
+* rank0.host = 172.19.0.10 # static IP of kinetica-7.1-head docker container
+* rank1.host = 172.19.0.10 # static IP of kinetica-7.1-head docker container
+* rank2.host = 172.19.0.11 # static IP of kinetica-7.1-worker docker container
 
 In the above config we are using a subnet of 172.19.0.0/16. If your subnet is different go ahead and edit these IP addresses to match your subnet
 
@@ -86,10 +86,10 @@ Now create the docker image for the kinetica cluster nodes. The build script cop
 	$ cd docker/kinetica-cluster
 	$ ./build.sh
 
-This creates a docker image called apwynne/kinetica-7.0-node. confirm as follows:
+This creates a docker image called apwynne/kinetica-7.1-node. confirm as follows:
 
-	$ docker image ls | grep kinetica-7.0-node
-    apwynne/kinetica-7.0-node
+	$ docker image ls | grep kinetica-7.1-node
+    apwynne/kinetica-7.1-node
 
 Now create the directories on the host machine that the docker containers will mount, for writing Kinetica logs :
 
@@ -103,7 +103,7 @@ Now we can run up the cluster
 
 	$ ./runProject.sh
 
-This will start 2 docker containers to form a small Kinetica cluster; the containers are called kinetica-7.0-head and kinetica-7.0-worker. These are given fixed IP addresses which correspond to the expected IP addresses in the gpudb.conf script as described above.
+This will start 2 docker containers to form a small Kinetica cluster; the containers are called kinetica-7.1-head and kinetica-7.1-worker. These are given fixed IP addresses which correspond to the expected IP addresses in the gpudb.conf script as described above.
 
 On the host machine pull up a browser and login at http://localhost:8080/gadmin and start the cluster.
 
@@ -148,13 +148,13 @@ Run the beam-builder docker container, if it's not already running
 
 In the beam-builder, at the # prompt first make sure the Kinetica cluster is up
 
-	# curl http://kinetica-7.0-head:9191
+	# curl http://kinetica-7.1-head:9191
 
 It should say "Kinetica is running!"
 
 Now edit the api/pom.xml to give the connection details for your Kinetica server. Look for the line:
 
-	    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.0-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
+	    <argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.1-head:9191", "--kineticaUsername=admin", "--kineticaPassword=Kinetica1!", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
 
 beamTestPipelineOptions is a Json array. You can set the following parameters as required:
 
@@ -229,13 +229,13 @@ Start the beam-edge-node container, using this image.
 
 At the # command prompt check you can ping the other containers:
 
-	# ping kinetica-7.0-head
-	# ping kinetica-7.0-worker
+	# ping kinetica-7.1-head
+	# ping kinetica-7.1-worker
 	# ping spark-cluster
 
 check Kinetica is listening as follows:
 
-	# curl http://`getent hosts kinetica-7.0-head | cut -d ' ' -f1`:9191
+	# curl http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191
 	Kinetica is running!
 
 Now we need to install the Beam connector API Jar into the maven repo on the edgeNode:
@@ -258,7 +258,7 @@ Now run the beam job:
 
 	# cd /usr/local/beam
 	# cp example-project/target/apache-beam-kineticaio-example-1.0-shaded.jar .
-	# /opt/spark-2.3.1-bin-hadoop2.7/bin/spark-submit --master spark://`getent hosts spark-cluster | cut -d ' ' -f1`:7077 --conf spark.executor.memory=2G --class com.kinetica.beam.example.Test1 apache-beam-kineticaio-example-1.0-shaded.jar --kineticaPassword=Kinetica1! --kineticaTable=scientists --kineticaURL=http://`getent hosts kinetica-7.0-head | cut -d ' ' -f1`:9191 --kineticaUsername=admin --runner=SparkRunner
+	# /opt/spark-2.3.1-bin-hadoop2.7/bin/spark-submit --master spark://`getent hosts spark-cluster | cut -d ' ' -f1`:7077 --conf spark.executor.memory=2G --class com.kinetica.beam.example.Test1 apache-beam-kineticaio-example-1.0-shaded.jar --kineticaPassword=Kinetica1! --kineticaTable=scientists --kineticaURL=http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191 --kineticaUsername=admin --runner=SparkRunner
 
 NB We copy the jar as it won't run from a docker mount, at least on Windows WSL
 
@@ -286,13 +286,13 @@ Start the beam-edge-node container:
 
 At the # command prompt check you can ping the other containers:
 
-	# ping kinetica-7.0-head
-	# ping kinetica-7.0-worker
+	# ping kinetica-7.1-head
+	# ping kinetica-7.1-worker
 	# ping spark-cluster
 
 check Kinetica is listening as follows:
 
-	# curl http://`getent hosts kinetica-7.0-head | cut -d ' ' -f1`:9191
+	# curl http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191
 
 It should say "Kinetica is running!"
 
@@ -309,7 +309,7 @@ Now run the beam job:
 	# cp example-project/target/apache-beam-kineticaio-example-1.0-shaded.jar .
 	# java -cp apache-beam-kineticaio-example-1.0-shaded.jar \
 	com.kinetica.beam.example.Test1 \
-	--kineticaURL="http://`getent hosts kinetica-7.0-head | cut -d ' ' -f1`:9191" \
+	--kineticaURL="http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191" \
 	--kineticaUsername=admin \
 	--kineticaPassword=Kinetica1! \
 	--kineticaTable=scientists \
