@@ -3,18 +3,19 @@
   <groupId>apache-beam-kineticaio</groupId>
   <artifactId>apache-beam-kineticaio-example</artifactId>
   <version>1.0</version>
+	<packaging>jar</packaging>
   <description>IO to read and write with Kinetica database</description>
 
   <repositories>
 	<repository>
 		<id>gpudb-releases</id>
-		<url>http://files.kinetica.com/nexus/content/repositories/releases/</url>
+		<url>https://nexus.kinetica.com/repository/releases/</url>
 	</repository>
   </repositories>
   <properties>
-    <beam.version>2.5.0</beam.version>
+    <beam.version>2.41.0</beam.version>
     <netty.version>4.0.43.Final</netty.version>
-    <slf4j.version>1.7.25</slf4j.version>
+    <slf4j.version>1.7.26</slf4j.version>
   </properties>
   <profiles>
     <profile>
@@ -35,11 +36,17 @@
 	      <artifactId>slf4j-api</artifactId>
 	      <version>${slf4j.version}</version>
 	    </dependency>
-		<dependency>
-		  <groupId>ch.qos.logback</groupId>
-		  <artifactId>logback-classic</artifactId>
-		  <version>1.0.13</version>
-		</dependency>
+		  <dependency>
+			  <groupId>ch.qos.logback</groupId>
+			  <artifactId>logback-classic</artifactId>
+			  <version>1.2.11</version>
+			  <exclusions>
+				  <exclusion>
+					  <groupId>org.slf4j</groupId>
+					  <artifactId>slf4j-api</artifactId>
+				  </exclusion>
+			  </exclusions>
+		  </dependency>
    	  </dependencies>
     </profile>
 	<profile>
@@ -81,7 +88,7 @@
 	<dependency>
 	    <groupId>com.google.guava</groupId>
 	    <artifactId>guava</artifactId>
-	    <version>20.0</version>
+	    <version>31.1-jre</version>
 	</dependency>
   </dependencies>
   <build>
@@ -94,6 +101,39 @@
 		</resource>
 	</resources>
     <plugins>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-dependency-plugin</artifactId>
+			<executions>
+				<execution>
+					<id>copy-dependencies</id>
+					<phase>prepare-package</phase>
+					<goals>
+						<goal>copy-dependencies</goal>
+					</goals>
+					<configuration>
+						<outputDirectory>
+							${project.build.directory}/libs
+						</outputDirectory>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-jar-plugin</artifactId>
+			<configuration>
+				<archive>
+					<manifest>
+						<addClasspath>true</addClasspath>
+						<classpathPrefix>libs/</classpathPrefix>
+						<mainClass>
+							com.kinetica.beam.example.ExampleBeamPipeline
+						</mainClass>
+					</manifest>
+				</archive>
+			</configuration>
+		</plugin>
 		<plugin>
 		  <artifactId>maven-compiler-plugin</artifactId>
 		  <version>3.7.0</version>
