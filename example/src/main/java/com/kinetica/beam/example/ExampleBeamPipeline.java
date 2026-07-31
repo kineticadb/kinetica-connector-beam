@@ -26,139 +26,139 @@ import com.gpudb.RecordObject;
 
 public class ExampleBeamPipeline implements Serializable {
 
-  private static final long serialVersionUID = 1L;
-  private static final Logger logger = LoggerFactory.getLogger(ExampleBeamPipeline.class);
+	private static final long serialVersionUID = 1L;
+	private static final Logger logger = LoggerFactory.getLogger(ExampleBeamPipeline.class);
 
-  public static void main(String[] args) {
+	public static void main(String[] args) {
 
-    logger.info("Example starting...");
+		logger.info("Example starting...");
 
-    ExamplePipelineOptions options = PipelineOptionsFactory.fromArgs(args).as(ExamplePipelineOptions.class);
+		ExamplePipelineOptions options = PipelineOptionsFactory.fromArgs(args).as(ExamplePipelineOptions.class);
 
-    logger.info(options.toString());
+		logger.info(options.toString());
 
-    testWrite(options);
+		testWrite(options);
 
-    testRead(options);
+		testRead(options);
 
-    logger.info("Example complete!");
+		logger.info("Example complete!");
 
-  }
+	}
 
-  public static void testRead(ExamplePipelineOptions options) {
+	public static void testRead(ExamplePipelineOptions options) {
 
-    // Can't reuse a pipeline - each test has its own
-    Pipeline pipeline = Pipeline.create(options);
+		// Can't reuse a pipeline - each test has its own
+		Pipeline pipeline = Pipeline.create(options);
 
-    PCollection<Scientist> output = pipeline.apply(KineticaIO.<Scientist>read()
-        .withHeadNodeURL(options.getKineticaURL())
-        .withUsername(options.getKineticaUsername())
-        .withPassword(options.getKineticaPassword())
-        .withTable(options.getKineticaTable())
-        .withEntity(Scientist.class)
-        .withCoder(SerializableCoder.of(Scientist.class)));
-
-
-    PCollection<Scientist> names = output.apply(
-        ParDo.of(new ExampleBeamPipeline.LogScientists()));
-
-    PCollection<KV<String, Integer>> mapped =
-        output.apply(
-            MapElements.via(
-                new SimpleFunction<Scientist, KV<String, Integer>>() {
-                  @Override
-                  public KV<String, Integer> apply(Scientist scientist) {
-                    return KV.of(scientist.name, scientist.id);
-                  }
-                }
-            )
-        );
+		PCollection<Scientist> output = pipeline.apply(KineticaIO.<Scientist>read()
+				.withHeadNodeURL(options.getKineticaURL())
+				.withUsername(options.getKineticaUsername())
+				.withPassword(options.getKineticaPassword())
+				.withTable(options.getKineticaTable())
+				.withEntity(Scientist.class)
+				.withCoder(SerializableCoder.of(Scientist.class)));
 
 
-    pipeline.run().waitUntilFinish();
-  }
+		PCollection<Scientist> names = output.apply(
+				ParDo.of(new ExampleBeamPipeline.LogScientists()));
 
-  public static void testWrite(ExamplePipelineOptions options) {
+		PCollection<KV<String, Integer>> mapped =
+				output.apply(
+						MapElements.via(
+								new SimpleFunction<Scientist, KV<String, Integer>>() {
+									@Override
+									public KV<String, Integer> apply(Scientist scientist) {
+										return KV.of(scientist.name, scientist.id);
+									}
+								}
+								)
+						);
 
-    // Can't reuse a pipeline - each test has its own
-    Pipeline pipeline = Pipeline.create(options);
 
-    String tableName = options.getKineticaTable();
-    try {
-      KineticaTestDataSet dataSet = KineticaTestDataSet.factory(options);
-      dataSet.testDropTable(tableName);
-      dataSet.testCreateTable(tableName);
-    } catch (GPUdbException e) {
-      throw new AssertionError(e);
-    }
+		pipeline.run().waitUntilFinish();
+	}
 
-    pipeline
-        .apply(Create.of(KineticaTestDataSet.getTestData()))
-        .apply(KineticaIO.<Scientist>write()
-            .withHeadNodeURL(options.getKineticaURL())
-            .withTable(options.getKineticaTable())
-            .withUsername(options.getKineticaUsername())
-            .withPassword(options.getKineticaPassword())
-            .withEntity(Scientist.class));
+	public static void testWrite(ExamplePipelineOptions options) {
 
-    pipeline.run().waitUntilFinish();
-  }
+		// Can't reuse a pipeline - each test has its own
+		Pipeline pipeline = Pipeline.create(options);
 
-  static class LogScientists extends DoFn<Scientist, Scientist> {
+		String tableName = options.getKineticaTable();
+		try {
+			KineticaTestDataSet dataSet = KineticaTestDataSet.factory(options);
+			dataSet.testDropTable(tableName);
+			dataSet.testCreateTable(tableName);
+		} catch (GPUdbException e) {
+			throw new AssertionError(e);
+		}
 
-    private static final long serialVersionUID = 1L;
+		pipeline
+		.apply(Create.of(KineticaTestDataSet.getTestData()))
+		.apply(KineticaIO.<Scientist>write()
+				.withHeadNodeURL(options.getKineticaURL())
+				.withTable(options.getKineticaTable())
+				.withUsername(options.getKineticaUsername())
+				.withPassword(options.getKineticaPassword())
+				.withEntity(Scientist.class));
 
-    @ProcessElement
-    public void processElement(ProcessContext c) {
-      Scientist scientist = c.element();
-      logger.info("Name: " + scientist.name + ", id: " + scientist.id);
-    }
-  }
+		pipeline.run().waitUntilFinish();
+	}
 
-  /**
-   * Simple Kinetica entity representing a scientist for read/write to Kinetica database
-   * Classes must:
-   * - Be static class if nested, or declared at top level
-   * - Have a public default constructor
-   * - Extend the type RecordObject
-   * - All fields mapping to Kinetica columns must be tagged using @RecordObject.Column and be accessible (public, not final or static)
-   * - Define equality and hashCode functions
-   */
-  public static class Scientist extends RecordObject implements Serializable {
+	static class LogScientists extends DoFn<Scientist, Scientist> {
 
-    private static final long serialVersionUID = 1L;
+		private static final long serialVersionUID = 1L;
 
-    @RecordObject.Column(order = 0, properties = {"char32"})
-    public String name;
+		@ProcessElement
+		public void processElement(ProcessContext c) {
+			Scientist scientist = c.element();
+			logger.info("Name: " + scientist.name + ", id: " + scientist.id);
+		}
+	}
 
-    @RecordObject.Column(order = 1, properties = {})
-    public Integer id;
+	/**
+	 * Simple Kinetica entity representing a scientist for read/write to Kinetica database
+	 * Classes must:
+	 * - Be static class if nested, or declared at top level
+	 * - Have a public default constructor
+	 * - Extend the type RecordObject
+	 * - All fields mapping to Kinetica columns must be tagged using @RecordObject.Column and be accessible (public, not final or static)
+	 * - Define equality and hashCode functions
+	 */
+	public static class Scientist extends RecordObject implements Serializable {
 
-    @Override
-    public String toString() {
-      return id + ":" + name;
-    }
+		private static final long serialVersionUID = 1L;
 
-    public Scientist() {
-    }
+		@RecordObject.Column(order = 0, properties = {"char32"})
+		public String name;
 
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      Scientist scientist = (Scientist) o;
-      return Objects.equal(id, scientist.id) && Objects.equal(name, scientist.name);
-    }
+		@RecordObject.Column(order = 1, properties = {})
+		public Integer id;
 
-    @Override
-    public int hashCode() {
-      return Objects.hashCode(name, id);
-    }
+		@Override
+		public String toString() {
+			return id + ":" + name;
+		}
 
-  }
+		public Scientist() {
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) {
+				return true;
+			}
+			if (o == null || getClass() != o.getClass()) {
+				return false;
+			}
+			Scientist scientist = (Scientist) o;
+			return Objects.equal(id, scientist.id) && Objects.equal(name, scientist.name);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hashCode(name, id);
+		}
+
+	}
 }
 

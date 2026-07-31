@@ -29,35 +29,35 @@ import org.apache.beam.sdk.options.PipelineOptions;
  */
 public interface ExamplePipelineOptions extends PipelineOptions {
 
-  /* Kinetica */
-  @Description("URL for Kinetica head node (scheme://host name/ip address:port)")
-  @Default.String("http://localhost:9191")
-  String getKineticaURL();
+	/* Kinetica */
+	@Description("URL for Kinetica head node (scheme://host name/ip address:port)")
+	@Default.String("http://localhost:9191")
+	String getKineticaURL();
 
-  void setKineticaURL(String value);
+	void setKineticaURL(String value);
 
-  @Description("Username for Kinetica login")
-  @Default.String("admin")
-  String getKineticaUsername();
+	@Description("Username for Kinetica login")
+	@Default.String("admin")
+	String getKineticaUsername();
 
-  void setKineticaUsername(String value);
+	void setKineticaUsername(String value);
 
-  @Description("Password for Kinetica login")
-  @Default.String("admin123")
-  String getKineticaPassword();
+	@Description("Password for Kinetica login")
+	@Default.String("admin123")
+	String getKineticaPassword();
 
-  void setKineticaPassword(String value);
+	void setKineticaPassword(String value);
 
-  @Description("Kinetica table name")
-  @Default.String("scientists")
-  String getKineticaTable();
+	@Description("Kinetica table name")
+	@Default.String("scientists")
+	String getKineticaTable();
 
-  void setKineticaTable(String value);
+	void setKineticaTable(String value);
 
-  @Description("Min number of simultanous requests on read")
-  @Default.String("test")
-  Integer getMinNumberOfSplits();
+	@Description("Min number of simultanous requests on read")
+	@Default.String("test")
+	Integer getMinNumberOfSplits();
 
-  void setMinNumberOfSplits(Integer value);
+	void setMinNumberOfSplits(Integer value);
 
 }

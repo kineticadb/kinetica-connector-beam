@@ -1,0 +1,107 @@
+name: kinetica-beam
+
+# Reference environment for the Kinetica Beam connector.
+#
+#   docker compose up -d kinetica          # database only
+#   docker compose up -d                   # database + builder + Spark cluster
+#
+# Host ports are overridable so this does not collide with an existing Kinetica
+# instance, e.g.  KINETICA_HTTP_PORT=19191 docker compose up -d
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Kinetica database. Single rank, no license key required.
+  #
+  # GPUDB_START_ALL=1 is REQUIRED: the image starts only the host manager by
+  # default, leaving the database itself stopped and nothing listening on 9191.
+  kinetica:
+    image: kinetica/kinetica-cpu:7.2.3.18.20260707203019.ga
+    container_name: kinetica
+    hostname: kinetica
+    environment:
+      GPUDB_START_ALL: "1"
+    ports:
+      - "${KINETICA_HTTP_PORT:-9191}:9191"    # database HTTP / connector endpoint
+      - "${KINETICA_GADMIN_PORT:-8080}:8080"  # GAdmin
+      - "${KINETICA_WORKBENCH_PORT:-8000}:8000"
+    volumes:
+      - kinetica-persist:/opt/gpudb/persist
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9191 | grep -q 'Kinetica is running'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    shm_size: 1gb
+
+  # ---------------------------------------------------------------------------
+  # Build container. Java 11 is the connector's compile target -- gpudb-api is
+  # built for Java 11 as of 7.2.3.7, so JDK 8 can no longer compile this project.
+  # The shared m2 volume is what lets `example` resolve the `api` artifact that
+  # `mvn install` puts there (there is no parent POM / reactor tying the two
+  # together).
+  builder:
+    image: maven:3.9-eclipse-temurin-11
+    container_name: beam-builder
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ../api:/workspace/api
+      - ../example:/workspace/example
+      - maven-cache:/root/.m2
+
+  # ---------------------------------------------------------------------------
+  # Spark 3.1.x standalone cluster. The version is pinned to match what Beam
+  # 2.41.0's beam-runners-spark-3 is compiled against (Spark 3.1.2, Scala 2.12);
+  # those deps are `provided`, so the cluster must supply a compatible runtime.
+  # `user: "0"` is required: the image runs as UID 185, which has no /etc/passwd
+  # entry, and Hadoop's UserGroupInformation login then fails with
+  # "failure to login: ... no valid users". The image's own entrypoint patches
+  # /etc/passwd, but only when that file is writable -- which it is not for 185.
+  spark-master:
+    image: apache/spark:v3.1.3
+    container_name: spark-master
+    hostname: spark-master
+    user: "0"
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.master.Master", "--host", "spark-master"]
+    ports:
+      - "${SPARK_MASTER_UI_PORT:-8082}:8080"  # Spark master web UI
+      - "${SPARK_MASTER_PORT:-7077}:7077"
+
+  spark-worker:
+    image: apache/spark:v3.1.3
+    container_name: spark-worker
+    hostname: spark-worker
+    user: "0"
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    environment:
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: "2g"
+    ports:
+      - "${SPARK_WORKER_UI_PORT:-8083}:8081"
+    depends_on:
+      - spark-master
+
+  # ---------------------------------------------------------------------------
+  # Edge node: where spark-submit is run from. Mounts the example project (NOT
+  # example/target directly -- `mvn clean` deletes and recreates that directory,
+  # which leaves a bind mount of it pointing at the old, deleted inode) so the
+  # shaded jar produced by `builder` can be submitted without a copy.
+  edge-node:
+    image: apache/spark:v3.1.3
+    container_name: beam-edge-node
+    hostname: edge-node
+    user: "0"
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "sleep infinity"]
+    volumes:
+      - ../example:/workspace/example:ro
+    depends_on:
+      - spark-master
+
+volumes:
+  kinetica-persist:
+  maven-cache:

@@ -22,9 +22,9 @@ import com.kinetica.beam.test.IT_KineticaIOTest.Scientist;
  */
 public class KineticaTestDataSet {
 
-  private static final Logger LOG = LoggerFactory.getLogger(KineticaTestDataSet.class);
+	private static final Logger LOG = LoggerFactory.getLogger(KineticaTestDataSet.class);
 
-  /*
+	/*
   static {	  
 	    PipelineOptionsFactory.register(IOTestPipelineOptions.class);
 	    IOTestPipelineOptions pipelineOptions =
@@ -33,67 +33,67 @@ public class KineticaTestDataSet {
 	    LOG.debug("*** "+pipelineOptions.getKineticaURL());
 		gpudb = getGPUdb(pipelineOptions);
   }
-*/
+	 */
 
-  public static GPUdb getGPUdb(IOTestPipelineOptions options) {
-    GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
+	public static GPUdb getGPUdb(IOTestPipelineOptions options) {
+		GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
 
-    gpudbOptions.setUsername(options.getKineticaUsername());
-    gpudbOptions.setPassword(options.getKineticaPassword());
+		gpudbOptions.setUsername(options.getKineticaUsername());
+		gpudbOptions.setPassword(options.getKineticaPassword());
 
-    GPUdb gpudb = null;
-    try {
-      gpudb = new GPUdb(options.getKineticaURL(), gpudbOptions);
-    } catch (GPUdbException e) {
-      LOG.error("Can't connect to GPUdb", e);
-      System.exit(99);
-    }
+		GPUdb gpudb = null;
+		try {
+			gpudb = new GPUdb(options.getKineticaURL(), gpudbOptions);
+		} catch (GPUdbException e) {
+			LOG.error("Can't connect to GPUdb", e);
+			System.exit(99);
+		}
 
-    return gpudb;
-  }
+		return gpudb;
+	}
 
-  public static void testCreateTable(GPUdb gpudb, String tableName) throws GPUdbException {
+	public static void testCreateTable(GPUdb gpudb, String tableName) throws GPUdbException {
 
-    if (!gpudb.hasTable(tableName, GPUdb.options()).getTableExists()) {
-      String scientistTypeId = RecordObject.createType(Scientist.class, gpudb);
-      gpudb.createTable(tableName, scientistTypeId, GPUdb.options());
-    }
-  }
+		if (!gpudb.hasTable(tableName, GPUdb.options()).getTableExists()) {
+			String scientistTypeId = RecordObject.createType(Scientist.class, gpudb);
+			gpudb.createTable(tableName, scientistTypeId, GPUdb.options());
+		}
+	}
 
-  public static void testDropTable(GPUdb gpudb, String tableName) throws GPUdbException {
+	public static void testDropTable(GPUdb gpudb, String tableName) throws GPUdbException {
 
-    if (gpudb.hasTable(tableName, GPUdb.options()).getTableExists()) {
-      gpudb.clearTable(tableName, "", GPUdb.options());
-    }
-  }
+		if (gpudb.hasTable(tableName, GPUdb.options()).getTableExists()) {
+			gpudb.clearTable(tableName, "", GPUdb.options());
+		}
+	}
 
-  public static void insertTestData(GPUdb gpudb, String tableName) throws GPUdbException {
+	public static void insertTestData(GPUdb gpudb, String tableName) throws GPUdbException {
 
-    String[] scientists = {
-        "Lovelace",
-        "Franklin",
-        "Meitner",
-        "Hopper",
-        "Curie",
-        "Faraday",
-        "Newton",
-        "Bohr",
-        "Galilei",
-        "Maxwell"
-    };
+		String[] scientists = {
+				"Lovelace",
+				"Franklin",
+				"Meitner",
+				"Hopper",
+				"Curie",
+				"Faraday",
+				"Newton",
+				"Bohr",
+				"Galilei",
+				"Maxwell"
+		};
 
-    List<Scientist> data = IntStream.range(0, 1000)
-        .mapToObj(i -> {
-          int index = i % scientists.length;
+		List<Scientist> data = IntStream.range(0, 1000)
+				.mapToObj(i -> {
+					int index = i % scientists.length;
 
-          Scientist scientist = new Scientist();
-          scientist.name = scientists[index];
-          scientist.id = i;
-          return scientist;
-        }).collect(Collectors.toList());
+					Scientist scientist = new Scientist();
+					scientist.name = scientists[index];
+					scientist.id = i;
+					return scientist;
+				}).collect(Collectors.toList());
 
-    gpudb.insertRecords(tableName, data, GPUdb.options());
+		gpudb.insertRecords(tableName, data, GPUdb.options());
 
-  }
+	}
 
 }

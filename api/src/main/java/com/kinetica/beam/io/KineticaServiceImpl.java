@@ -58,271 +58,269 @@ import org.slf4j.LoggerFactory;
  */
 public class KineticaServiceImpl<T extends RecordObject> implements KineticaService<T> {
 
-  private static final long serialVersionUID = 1L;
-  private static final Logger LOG = LoggerFactory.getLogger(KineticaServiceImpl.class);
+	private static final long serialVersionUID = 1L;
+	private static final Logger LOG = LoggerFactory.getLogger(KineticaServiceImpl.class);
 
-  private class KineticaReaderImpl extends BoundedSource.BoundedReader<T> {
+	private class KineticaReaderImpl extends BoundedSource.BoundedReader<T> {
 
-    private final KineticaIO.KineticaSource<T> source;
+		private final KineticaIO.KineticaSource<T> source;
 
-    private Iterator<GenericRecord> iterator;
-    private T current;
+		private Iterator<GenericRecord> iterator;
+		private T current;
 
-    private class KineticaValue {
-      Class<?> javaType;
-      String kineticaColumnName;
-      Object value;
-    }
+		private class KineticaValue {
+			Class<?> javaType;
+			String kineticaColumnName;
+			Object value;
+		}
 
-    KineticaReaderImpl(KineticaIO.KineticaSource<T> source) {
-      this.source = source;
-    }
+		KineticaReaderImpl(KineticaIO.KineticaSource<T> source) {
+			this.source = source;
+		}
 
-    @Override
-    public boolean start() {
-      LOG.debug("Starting Kinetica reader");
+		@Override
+		public boolean start() {
+			LOG.debug("Starting Kinetica reader");
 
-      // create a query to pull the split data from Kinetica
-      GetRecordsRequest request = new GetRecordsRequest();
-      request.setTableName(source.tableName);
-      request.setOffset(source.offset);
-      request.setLimit(source.limit);
-      request.setEncoding(GetRecordsRequest.Encoding.BINARY);
-      request.setOptions(new HashMap<String,String>());
+			// create a query to pull the split data from Kinetica
+			GetRecordsRequest request = new GetRecordsRequest();
+			request.setTableName(source.tableName);
+			request.setOffset(source.offset);
+			request.setLimit(source.limit);
+			request.setEncoding(GetRecordsRequest.Encoding.BINARY);
+			request.setOptions(new HashMap<String,String>());
 
-      try {
-        GetRecordsResponse<GenericRecord> response = getGPUdb().<GenericRecord>getRecords(request);
-        iterator = response.getData().iterator();
-        return advance();
-      } catch (GPUdbException e) {
-        LOG.error("failed reading data from Kinetica", e);
-        return false;
-      }
-    }
+			try {
+				GetRecordsResponse<GenericRecord> response = getGPUdb().<GenericRecord>getRecords(request);
+				iterator = response.getData().iterator();
+				return advance();
+			} catch (GPUdbException e) {
+				LOG.error("failed reading data from Kinetica", e);
+				return false;
+			}
+		}
 
-    @Override
-    public boolean advance() {
-      if (iterator.hasNext()) {
-        GenericRecord gr = iterator.next();
+		@Override
+		public boolean advance() {
+			if (iterator.hasNext()) {
+				GenericRecord gr = iterator.next();
 
-        Class<T> entityClass = source.spec.entity();
+				Class<T> entityClass = source.spec.entity();
 
-        try {
-          // first retrieve the record
-          Field[] fields = entityClass.getDeclaredFields();
+				try {
+					// first retrieve the record
+					Field[] fields = entityClass.getDeclaredFields();
 
-          // find the java fields on type T that correspond to kinetica fields
-          List<KineticaValue> kineticaRecord = Arrays.stream(fields).map(field -> {
-            Column annnotation = (Column)field.getAnnotation(Column.class);
-            if (annnotation != null) {
-              String kineticaColumnName = annnotation.name();
-              if(kineticaColumnName==null || kineticaColumnName.length()==0)
-                kineticaColumnName=field.getName();
+					// find the java fields on type T that correspond to kinetica fields
+					List<KineticaValue> kineticaRecord = Arrays.stream(fields).map(field -> {
+						Column annnotation = (Column)field.getAnnotation(Column.class);
+						if (annnotation != null) {
+							String kineticaColumnName = annnotation.name();
+							if(kineticaColumnName==null || kineticaColumnName.length()==0)
+								kineticaColumnName=field.getName();
 
-              KineticaValue kineticaValue = new KineticaValue();
-              kineticaValue.javaType = field.getType();
-              kineticaValue.value = gr.get(kineticaColumnName);
-              kineticaValue.kineticaColumnName = kineticaColumnName;
-              return kineticaValue;
-            } // ignore fields without @Colunn annotations
-            return null;
-          }).filter(Objects::nonNull).collect(Collectors.toList());
+							KineticaValue kineticaValue = new KineticaValue();
+							kineticaValue.javaType = field.getType();
+							kineticaValue.value = gr.get(kineticaColumnName);
+							kineticaValue.kineticaColumnName = kineticaColumnName;
+							return kineticaValue;
+						} // ignore fields without @Colunn annotations
+						return null;
+					}).filter(Objects::nonNull).collect(Collectors.toList());
 
-          // now find a default constructor, create an instance and set the values
-          Constructor<T> constructor = entityClass.getDeclaredConstructor();
-          if (constructor != null) {
-            current = constructor.newInstance();
-            kineticaRecord.forEach(kineticaValue -> {
-              try {
-                entityClass.getDeclaredField(kineticaValue.kineticaColumnName).set(current, kineticaValue.value);
-              } catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException
-                       | SecurityException e) {
-                LOG.error("Failed setting value on field",e);
-              }
-            });
-          } else throw new Exception ("No public default constructor on class "+entityClass.getCanonicalName());
+					// now find a default constructor, create an instance and set the values
+					Constructor<T> constructor = entityClass.getDeclaredConstructor();
+					if (constructor != null) {
+						current = constructor.newInstance();
+						kineticaRecord.forEach(kineticaValue -> {
+							try {
+								entityClass.getDeclaredField(kineticaValue.kineticaColumnName).set(current, kineticaValue.value);
+							} catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException
+									| SecurityException e) {
+								LOG.error("Failed setting value on field",e);
+							}
+						});
+					} else throw new Exception ("No public default constructor on class "+entityClass.getCanonicalName());
 
-          return true;
-        } catch (Exception e) {
-          LOG.error(e.getMessage());
-        }
-      }
-      current = null;
-      return false;
-    }
+					return true;
+				} catch (Exception e) {
+					LOG.error(e.getMessage());
+				}
+			}
+			current = null;
+			return false;
+		}
 
-    @Override
-    public void close() {
-    }
+		@Override
+		public void close() {
+		}
 
-    @Override
-    public T getCurrent() throws NoSuchElementException {
-      if (current == null) {
-        throw new NoSuchElementException();
-      }
-      return current;
-    }
+		@Override
+		public T getCurrent() throws NoSuchElementException {
+			if (current == null) {
+				throw new NoSuchElementException();
+			}
+			return current;
+		}
 
-    @Override
-    public KineticaIO.KineticaSource<T> getCurrentSource() {
-      return source;
-    }
+		@Override
+		public KineticaIO.KineticaSource<T> getCurrentSource() {
+			return source;
+		}
 
-    private GPUdb getGPUdb() {
-      GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
+		private GPUdb getGPUdb() {
+			GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
 
-      gpudbOptions.setUsername(source.spec.username());
-      gpudbOptions.setPassword(source.spec.password());
+			gpudbOptions.setUsername(source.spec.username());
+			gpudbOptions.setPassword(source.spec.password());
 
-      GPUdb gpudb = null;
-      try {
-        gpudb = new GPUdb(source.spec.headNodeURL(), gpudbOptions);
-      } catch (GPUdbException e) {
-        LOG.error("Can't connect to GPUdb", e);
-        System.exit(99);
-      }
+			GPUdb gpudb = null;
+			try {
+				gpudb = new GPUdb(source.spec.headNodeURL(), gpudbOptions);
+			} catch (GPUdbException e) {
+				LOG.error("Can't connect to GPUdb", e);
+				System.exit(99);
+			}
 
-      return gpudb;
-    }
-
-
-  }
-
-  @Override
-  public KineticaReaderImpl createReader(KineticaIO.KineticaSource<T> source) {
-    return new KineticaReaderImpl(source);
-  }
-
-  @Override
-  public long getEstimatedSizeBytes(KineticaIO.Read<T> spec) {
-    return 0L;
-  }
-
-  @Override
-  public List<BoundedSource<T>> split(KineticaIO.Read<T> spec,
-                                      long desiredBundleSizeBytes) {
-
-    // For now we read everything in one split and one API call.
-    // In future, it will be faster on large datasets to use a distributed UDF to read
-    // multiple streams in parallel and map splits to kinetica ranks/toms
-    List<BoundedSource<T>> sourceList = new ArrayList<BoundedSource<T>>();
-
-    long estimatedSizeBytes = getEstimatedSizeBytes(spec);
-    long numSplits = getNumSplits(desiredBundleSizeBytes, estimatedSizeBytes, spec.minNumberOfSplits());
-
-    // pull the whole dataset in a single query for now
-    sourceList.add(new KineticaIO.KineticaSource<T>(spec, spec.table(), 0, GPUdbBase.END_OF_SET));
-    return sourceList;
-  }
-
-  private static long getNumSplits(
-      long desiredBundleSizeBytes, long estimatedSizeBytes, @Nullable Integer minNumberOfSplits) {
-
-    long numSplits = desiredBundleSizeBytes > 0 ? (estimatedSizeBytes / desiredBundleSizeBytes) : 1;
-    if (numSplits <= 0) {
-      LOG.warn("Number of splits is less than 0 ({}), fallback to 1", numSplits);
-      numSplits = 1;
-    }
-    return minNumberOfSplits != null ? Math.max(numSplits, minNumberOfSplits) : numSplits;
-  }
-
-  /**
-   * Writer storing an entity into Kinetica database.
-   */
-  protected class KineticaWriterImpl implements Writer<T> {
-
-    private final KineticaIO.Write<T> spec;
-
-    private BulkInserter<T> bulkInserter = null;
-    private final static int batchSize = 100000; // buffer size before the data is flushed to Kinetica, in units of number of records 
-    private final static long flushTimerFrequency = 3000; // frequency in ms that residual data in the buffer is flushed to Kinetica
-
-    KineticaWriterImpl(KineticaIO.Write<T> spec) {
-      this.spec = spec;
-    }
-
-    /**
-     * Write the entity to the Kinetica instance.
-     * Note when using bulkInserter not all records will be flushed until ????
-     */
-    @Override
-    public void write(T entity) throws ExecutionException, InterruptedException {
-
-      String kineticaTableName = spec.table();
-
-      try {
-//			InsertRecordsResponse response = getGPUdb().insertRecords(kineticaTableName, Collections.singletonList(entity), null);
-
-        if (bulkInserter==null) {
-          GPUdb gpudb = getGPUdb();
-          WorkerList workers = new WorkerList(gpudb);
-
-          Type T_Type = RecordObject.getType(entity.getClass());
-
-          bulkInserter = new BulkInserter<T>(getGPUdb(), kineticaTableName, T_Type, batchSize, null, workers);
-
-          // commit all buffered data to Kinetica periodically even if the buffer is not full
-          TimerTask flushTask = new TimerTask() {
-            @Override
-            public void run() {
-              try {
-                if (bulkInserter != null)
-                  bulkInserter.flush();
-              } catch (InsertException e) {
-                LOG.error("Failed writing to Kinetica on Writer timeout", e);
-              }
-            }
-          };
-
-          Timer flushTimer = new Timer("FlushTimer", true);
-          flushTimer.schedule(flushTask, flushTimerFrequency /* delay */, flushTimerFrequency /* period */);
-        }
-
-        bulkInserter.insert(entity);
-
-      } catch (GPUdbException e) {
-        LOG.error("Failed writing to Kinetica");
-        throw new ExecutionException(e);
-      }
-
-    }
-
-    @Override
-    public void close() throws ExecutionException, InterruptedException {
-
-      // commit all buffered data to Kinetica before exit
-      try {
-        bulkInserter.close();
-      } catch (InsertException e) {
-        LOG.error("Failed writing to Kinetica on Writer.close");
-        throw new ExecutionException(e);
-      }
-    }
+			return gpudb;
+		}
 
 
-    private GPUdb getGPUdb() {
-      GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
+	}
 
-      gpudbOptions.setUsername(spec.username());
-      gpudbOptions.setPassword(spec.password());
+	@Override
+	public KineticaReaderImpl createReader(KineticaIO.KineticaSource<T> source) {
+		return new KineticaReaderImpl(source);
+	}
 
-      GPUdb gpudb = null;
-      try {
-        gpudb = new GPUdb(spec.headNodeURL(), gpudbOptions);
-      } catch (GPUdbException e) {
-        LOG.error("Can't connect to GPUdb", e);
-        System.exit(99);
-      }
+	@Override
+	public long getEstimatedSizeBytes(KineticaIO.Read<T> spec) {
+		return 0L;
+	}
 
-      return gpudb;
-    }
+	@Override
+	public List<BoundedSource<T>> split(KineticaIO.Read<T> spec, long desiredBundleSizeBytes) {
 
-  }
+		// For now we read everything in one split and one API call.
+		// In future, it will be faster on large datasets to use a distributed UDF to read
+		// multiple streams in parallel and map splits to kinetica ranks/toms
+		List<BoundedSource<T>> sourceList = new ArrayList<BoundedSource<T>>();
 
-  @Override
-  public Writer <T>createWriter(KineticaIO.Write<T> spec) {
-    return new KineticaWriterImpl(spec);
-  }
+		long estimatedSizeBytes = getEstimatedSizeBytes(spec);
+		long numSplits = getNumSplits(desiredBundleSizeBytes, estimatedSizeBytes, spec.minNumberOfSplits());
+
+		// pull the whole dataset in a single query for now
+		sourceList.add(new KineticaIO.KineticaSource<T>(spec, spec.table(), 0, GPUdbBase.END_OF_SET));
+		return sourceList;
+	}
+
+	private static long getNumSplits(long desiredBundleSizeBytes, long estimatedSizeBytes, @Nullable Integer minNumberOfSplits) {
+
+		long numSplits = desiredBundleSizeBytes > 0 ? (estimatedSizeBytes / desiredBundleSizeBytes) : 1;
+		if (numSplits <= 0) {
+			LOG.warn("Number of splits is less than 0 ({}), fallback to 1", numSplits);
+			numSplits = 1;
+		}
+		return minNumberOfSplits != null ? Math.max(numSplits, minNumberOfSplits) : numSplits;
+	}
+
+	/**
+	 * Writer storing an entity into Kinetica database.
+	 */
+	protected class KineticaWriterImpl implements Writer<T> {
+
+		private final KineticaIO.Write<T> spec;
+
+		private BulkInserter<T> bulkInserter = null;
+		private final static int batchSize = 100000; // buffer size before the data is flushed to Kinetica, in units of number of records 
+		private final static long flushTimerFrequency = 3000; // frequency in ms that residual data in the buffer is flushed to Kinetica
+
+		KineticaWriterImpl(KineticaIO.Write<T> spec) {
+			this.spec = spec;
+		}
+
+		/**
+		 * Write the entity to the Kinetica instance.
+		 * Note when using bulkInserter not all records will be flushed until ????
+		 */
+		@Override
+		public void write(T entity) throws ExecutionException, InterruptedException {
+
+			String kineticaTableName = spec.table();
+
+			try {
+				//			InsertRecordsResponse response = getGPUdb().insertRecords(kineticaTableName, Collections.singletonList(entity), null);
+
+				if (bulkInserter==null) {
+					GPUdb gpudb = getGPUdb();
+					WorkerList workers = new WorkerList(gpudb);
+
+					Type T_Type = RecordObject.getType(entity.getClass());
+
+					bulkInserter = new BulkInserter<T>(getGPUdb(), kineticaTableName, T_Type, batchSize, null, workers);
+
+					// commit all buffered data to Kinetica periodically even if the buffer is not full
+					TimerTask flushTask = new TimerTask() {
+						@Override
+						public void run() {
+							try {
+								if (bulkInserter != null)
+									bulkInserter.flush();
+							} catch (InsertException e) {
+								LOG.error("Failed writing to Kinetica on Writer timeout", e);
+							}
+						}
+					};
+
+					Timer flushTimer = new Timer("FlushTimer", true);
+					flushTimer.schedule(flushTask, flushTimerFrequency /* delay */, flushTimerFrequency /* period */);
+				}
+
+				bulkInserter.insert(entity);
+
+			} catch (GPUdbException e) {
+				LOG.error("Failed writing to Kinetica");
+				throw new ExecutionException(e);
+			}
+
+		}
+
+		@Override
+		public void close() throws ExecutionException, InterruptedException {
+
+			// commit all buffered data to Kinetica before exit
+			try {
+				bulkInserter.close();
+			} catch (InsertException e) {
+				LOG.error("Failed writing to Kinetica on Writer.close");
+				throw new ExecutionException(e);
+			}
+		}
+
+
+		private GPUdb getGPUdb() {
+			GPUdbBase.Options gpudbOptions = new GPUdbBase.Options();
+
+			gpudbOptions.setUsername(spec.username());
+			gpudbOptions.setPassword(spec.password());
+
+			GPUdb gpudb = null;
+			try {
+				gpudb = new GPUdb(spec.headNodeURL(), gpudbOptions);
+			} catch (GPUdbException e) {
+				LOG.error("Can't connect to GPUdb", e);
+				System.exit(99);
+			}
+
+			return gpudb;
+		}
+
+	}
+
+	@Override
+	public Writer <T>createWriter(KineticaIO.Write<T> spec) {
+		return new KineticaWriterImpl(spec);
+	}
 
 
 }

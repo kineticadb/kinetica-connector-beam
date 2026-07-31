@@ -24,28 +24,28 @@ import org.apache.beam.sdk.io.BoundedSource;
 
 /** An interface for real or fake implementations of Kinetica. */
 public interface KineticaService<T> extends Serializable {
-  /**
-   * Returns a {@link org.apache.beam.sdk.io.BoundedSource.BoundedReader} that will read from
-   * Kinetica using the spec from {@link
-   * com.kinetica.beam.io.KineticaIO.KineticaSource}.
-   */
-  BoundedSource.BoundedReader<T> createReader(KineticaIO.KineticaSource<T> source);
+	/**
+	 * Returns a {@link org.apache.beam.sdk.io.BoundedSource.BoundedReader} that will read from
+	 * Kinetica using the spec from {@link
+	 * com.kinetica.beam.io.KineticaIO.KineticaSource}.
+	 */
+	BoundedSource.BoundedReader<T> createReader(KineticaIO.KineticaSource<T> source);
 
-  /** Returns an estimation of the size that could be read. */
-  long getEstimatedSizeBytes(KineticaIO.Read<T> spec);
+	/** Returns an estimation of the size that could be read. */
+	long getEstimatedSizeBytes(KineticaIO.Read<T> spec);
 
-  /** Split a table read into several sources. */
-  List<BoundedSource<T>> split(KineticaIO.Read<T> spec, long desiredBundleSizeBytes);
+	/** Split a table read into several sources. */
+	List<BoundedSource<T>> split(KineticaIO.Read<T> spec, long desiredBundleSizeBytes);
 
-  /** Create a {@link Writer} that writes entities into the Kinetica instance. */
-  Writer <T> createWriter(KineticaIO.Write<T> spec);
+	/** Create a {@link Writer} that writes entities into the Kinetica instance. */
+	Writer <T> createWriter(KineticaIO.Write<T> spec);
 
-  /** Writer for an entity. */
-  interface Writer<T> extends AutoCloseable {
-    /**
-     * This method should be synchronous. i.e. the entity is fully
-     * stored (and committed) into the Kinetica instance when you exit from this method.
-     */
-    void write(T entity) throws ExecutionException, InterruptedException;
-  }
+	/** Writer for an entity. */
+	interface Writer<T> extends AutoCloseable {
+		/**
+		 * This method should be synchronous. i.e. the entity is fully
+		 * stored (and committed) into the Kinetica instance when you exit from this method.
+		 */
+		void write(T entity) throws ExecutionException, InterruptedException;
+	}
 }

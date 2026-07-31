@@ -4,9 +4,9 @@
 <h5 align="center" style="margin:0px">
 	<a href="https://www.kinetica.com/">Website</a>
 	|
-	<a href="https://docs.kinetica.com/7.1/">Docs</a>
+	<a href="https://docs.kinetica.com/">Docs</a>
 	|
-	<a href="https://docs.kinetica.com/7.1/connectors/beam_guide/">Beam Docs</a>
+	<a href="https://docs.kinetica.com/content/connectors/beam_guide">Beam Docs</a>
 	|
 	<a href="https://join.slack.com/t/kinetica-community/shared_invite/zt-1bt9x3mvr-uMKrXlSDXfy3oU~sKi84qg">Community Slack</a>   
 </h5>
@@ -16,8 +16,7 @@
 
 * [What is the Project about?](#what-is-the-project-about)
 * [Build and run the API and example](#build-and-run-the-api-and-example)
-* [Build and test the API with a Docker cluster](#build-and-test-the-api-with-a-docker-cluster)
-* [Running the Spark example](#running-the-spark-example)
+* [Build and test with the Docker environment](#build-and-test-with-the-docker-environment)
 * [Support](#support)
 * [Contact Us](#contact-us)
 
@@ -54,7 +53,7 @@ pipelines. What makes it interesting is:
 	provides language bindings for Java, Python, Go and Scala. However, in
 	practice, this is an evolving story and right now most of the Beam ecosystem
 	is Java specific. This Kinetica Beam connector supports Java Beam pipelines
-	(requires Java 8+).
+	(requires Java 11+).
 
 4.	Extensibility
 
@@ -101,7 +100,7 @@ Compile the example.
 
 Run the example.
 
-	java -jar target/apache-beam-kineticaio-example-1.0.jar \
+	java -jar target/apache-beam-kineticaio-example-7.2.0.0.jar \
 		--kineticaURL=<url> \
 		--kineticaUsername=<username> \
 		--kineticaPassword=<password>
@@ -125,332 +124,185 @@ the console.  The output should look similar to the following.
 	2022-09-02 12:27:37.329 [main] INFO  c.k.beam.example.ExampleBeamPipelinemain:44 - Example complete!
 
 
-## Build and test the API with a Docker cluster ##
+## Build and test with the Docker environment ##
 
-### Set up your docker environment ###
+A reference environment is provided in `docker/docker-compose.yml`. It brings up
+a Kinetica 7.2 database, a Java 11 Maven builder, and a Spark 3.1 standalone
+cluster with an edge node to submit jobs from. Everything is pulled from public
+registries: there are no artifacts to download by hand and no license key is
+required.
 
-In this example we are going to be running the following software on Docker to
-simulate a small site install:
+You need Docker with the Compose plugin (check with `docker compose version`)
+and roughly 8 GB of free disk for the images.
 
-*	A two-node Kinetica cluster
-*	A small Spark cluster with one worker
-*	An edge node machine running the Beam example
+All commands below are run from the `docker` directory:
 
-This is going to need a sensible amount of resource allocating to Docker Engine
-in order to run all this software - otherwise you may get slowness or Spark jobs
-refusing to start up. At a minimum, set the Docker Engine to have the following:
+	cd docker
 
-*	CPUs: 4
-*	Memory: 14G
-*	Swap: 1G
+### Start the database ###
 
-The examples here can also be reproduced on machines without Docker - all the
-necessary info is in the Dockerfiles and scripts but no specific instructions
-are given here as it is very site-specific.
+	docker compose up -d kinetica
 
-If you haven't before, first create the docker network bridge
+The first run pulls about 2 GB. The database takes about two minutes to come up
+from an empty persist volume, so wait for the healthcheck to report `healthy`
+before connecting:
 
-	$ docker network create beamnet
+	docker compose ps
 
-Now check the subnet that the network is using on your machine:
+	NAME       IMAGE                                              STATUS
+	kinetica   kinetica/kinetica-cpu:7.2.3.18.20260707203019.ga   Up 2 minutes (healthy)
 
-	$ docker network inspect beamnet | grep Subnet
+GAdmin is then at <http://localhost:8080> and the default credentials are
+`admin` / `admin`.
 
-The config below is set up for a subnet of `172.19.0.0/16`, but your mileage
-may vary. Make a note of the subnet for later.
+If a port is already taken on your host — for example because you are already
+running Kinetica — override it rather than editing the compose file:
 
-### Build and run the Kinetica cluster on docker ###
+	KINETICA_HTTP_PORT=19191 KINETICA_GADMIN_PORT=18080 docker compose up -d kinetica
 
-First, we need to create the `gpudb.conf` file. The build script will copy this
-into the Docker image, so we need to edit that file before building the Docker
-images.
+The same applies to `KINETICA_WORKBENCH_PORT`, `SPARK_MASTER_UI_PORT`,
+`SPARK_MASTER_PORT` and `SPARK_WORKER_UI_PORT`.
 
-An example file is provided in
-`/docker/kinetica-cluster/resources/gpudb.conf.template` for Kinetica version
-7.1.0.0; all you need to do is:
+### Build the connector and the example ###
 
-1.	copy `/docker/kinetica-cluster/resources/gpudb.conf.template` to
-	`/docker/kinetica-cluster/resources/gpudb.conf`
-2.	edit `gpudb.conf` and set the `license_key` parameter
+	docker compose up -d builder
+	docker compose exec builder mvn -f api/pom.xml clean install
+	docker compose exec builder mvn -f example/pom.xml clean package
 
-This file has the following config:
+The `api` project must be installed before `example` will build: there is no
+parent POM tying them together, so `example` resolves the connector from the
+local Maven repository. That repository is a named volume shared by the builder,
+so it survives container restarts.
 
-* `license_key` = <configure your license key>
-* `head_ip_address` = `172.19.0.10` # static IP of `kinetica-7.1-head` Docker container
-* `enable_worker_http_servers` = `true` # turn on multi-head ingest support
-* `rank0.host` = `172.19.0.10` # static IP of `kinetica-7.1-head` Docker container
-* `rank1.host` = `172.19.0.10` # static IP of `kinetica-7.1-head` Docker container
-* `rank2.host` = `172.19.0.11` # static IP of `kinetica-7.1-worker` Docker container
+### Run the example on the Direct Runner ###
 
-In the above config we are using a subnet of `172.19.0.0/16`. If your subnet is
-different, edit these IP addresses to match your subnet.
+	docker compose exec builder \
+	    java -jar example/target/apache-beam-kineticaio-example-7.2.0.0-shaded.jar \
+	        --kineticaURL=http://kinetica:9191 \
+	        --kineticaUsername=admin \
+	        --kineticaPassword=admin \
+	        --kineticaTable=scientists \
+	        --runner=DirectRunner
 
-Now we need to download the Kinetica binary from http://repo.kinetica.com and
-copy into `docker/kinetica-cluster/resources/<kinetica-rpm-filename>`.
+The example creates the `scientists` table, writes 1000 rows to it with Beam,
+reads them back and logs them:
 
-Now create the Docker image for the Kinetica cluster nodes. The build script
-copies the `gpudb.conf` file into the Docker image - if you need to change the
-`gpudb.conf` file for some reason just rebuild the image (the COPY step is near
-the end so should be quick).
+	2026-07-30 19:58:46.269 [direct-runner-worker] INFO  - Name: Newton, id: 156
+	...
+	2026-07-30 19:58:46.288 [main] INFO  - Example complete!
 
-	$ cd docker/kinetica-cluster
-	$ ./build.sh
-
-This creates a docker image called `apwynne/kinetica-7.1-node`; confirm as follows:
-
-	$ docker image ls | grep kinetica-7.1-node
-    apwynne/kinetica-7.1-node
-
-Now create the directories on the host machine that the docker containers will
-mount, for writing Kinetica logs:
-
-	$ mkdir -p docker/kinetica-cluster/mount/kinetica-head/gpudb-logs/
-	$ mkdir -p docker/kinetica-cluster/mount/kinetica-worker/gpudb-logs/
-
-
-Now edit the `runProject.sh` script file. Look for the argument
-`--ip 172.19.0.10` in the line that starts the Kinetica head node and change it
-to the IP you selected earlier for the head node to go with your subnet.
-Similarly, look for the argument `--ip 172.19.0.11` on the line that starts the
-Kinetica worker node and change that to the IP you selected earlier for your
-subnet.
-
-Now we can run up the cluster
-
-	$ ./runProject.sh
-
-This will start 2 docker containers to form a small Kinetica cluster; the
-containers are called `kinetica-7.1-head` and `kinetica-7.1-worker`. These are
-given fixed IP addresses which correspond to the expected IP addresses in the
-`gpudb.conf` script as described above.
-
-On the host machine pull up a browser and login at http://localhost:8080/gadmin
-and start the cluster.
-
-### Create and run the beam-builder docker container ####
-
-First, download the resources from the web as follows and place them in the
-`docker/builder/resources` directory:
-
-* Java 8 JDK (`jdk-8u162-linux-x64.rpm`)
-* Apache Maven (`apache-maven-3.5.3-bin.tar.gz`)
-
-Now create and run the docker container:
-
-	$ cd docker/builder
-	$ ./build.sh
-	$ ./run.sh
-
-This creates a docker image and then runs a container called beam-builder that
-will be used to build the API.
-
-The build process includes an optional `verify` stage that connects to a
-Kinetica cluster and runs some tests. The builder container is on the same
-docker bridge network as the Kinetica cluster so that the nodes can communicate
-freely for bulk insert operations.
-
-### To build the API Jar ###
-
-In the beam-builder, at the # prompt
-
-	# cd /usr/local/beam/api
-	# mvn clean package
-
-This will create the API jar in `target/apache-beam-kineticaio-1.0.jar`. Use
-this in your Beam code.
-
-Hit ctrl-D to exit from the # prompt and stop the builder container.
-
-### To unit-test the API Jar ###
-
-This step is optional. It uses the DirectRunner to run some simple read/write
-tests against the Kinetica cluster using Apache Beam.
-
-Make sure you started the Kinetica cluster as described above before running
-this step.
-
-Run the beam-builder docker container, if it's not already running
-
-	$ cd docker/builder
-	$ ./run.sh
-
-In the beam-builder, at the # prompt first make sure the Kinetica cluster is up
-
-	# curl http://kinetica-7.1-head:9191
-
-It should say "Kinetica is running!"
-
-Now edit the `api/pom.xml` to give the connection details for your Kinetica
-server. Look for the line:
-
-	<argLine>-DbeamTestPipelineOptions='["--kineticaURL=http://kinetica-7.1-head:9191", "--kineticaUsername=admin", "--kineticaPassword=admin123", "--kineticaTable=scientists", "--runner=DirectRunner"]'</argLine>
-
-`beamTestPipelineOptions` is a JSON array. You can set the following parameters
-as required:
-
-* `kineticaURL` *(defaults to `http://localhost:9191`)*
-* `kineticaUsername` *(defaults to `admin`)*
-* `kineticaPassword`
-* `kineticaTable` *(defaults to `scientists`)*  This is a test table that gets
-  created and accessed during the unit tests
-
-Now in the `api` directory run the unit tests:
-
-	# mvn verify -PrunTests
-
-This will:
-
-* create the API jar in `target/apache-beam-kineticaio-1.0.jar`, if you didn't
-  already do it (above)
-* build and run the Junit tests using the Beam Direct Runner. You should see 2
-  tests ran without error
-
-If you login to GAdmin, you will see the tests created a test table called
-`scientists`. You can safely delete this, if required.
-
-Hit ctrl-D to exit from the # prompt and stop the builder container.
-
-
-## Running the Spark example ##
-
-### Build and start the Spark cluster ###
-
-First, download the resources from the web as follows and place them in the
-`docker/sparkCluster/resources` directory:
-
-* Java 8 JDK (`jdk-8u162-linux-x64.rpm`)
-* Apache Spark (`spark-2.3.1-bin-hadoop2.7.tgz`)
-
-Now create and run the docker container:
-
-	$ cd docker/sparkCluster
-	$ ./build.sh
-	$ ./run.sh
-
-This builds a docker image called `apwynne/spark-cluster` and runs a Docker
-container called `spark-cluster`.
-
-On the host machine open a browser window at http://localhost:8082/.
-
-### Build and start the Edge Node ###
-
-First, download the resources from the web as follows and place them in the
-`docker/edgeNode/resources` directory:
-
-* Apache Maven (`apache-maven-3.5.3-bin.tar.gz`)
-* Java 8 JDK (`jdk-8u162-linux-x64.rpm`) # from Oracle website
-* Kinetica Beam Connector (`apache-beam-kineticaio-1.0.jar`)  # from building the API - see above
-* Apache Spark (`spark-2.3.1-bin-hadoop2.7.tgz`)
-
-Build the source and docker images:
-
-	$ cd docker/edgeNode
-	$ ./build.sh
-
-This creates a docker image for the edgeNode called `apwynne/beam-spark-driver`
-
-Start the beam-edge-node container, using this image.
-
-	$ cd docker/edgeNode
-	$ ./run.sh
-
-At the # command prompt check you can ping the other containers:
-
-	# ping kinetica-7.1-head
-	# ping kinetica-7.1-worker
-	# ping spark-cluster
-
-Check Kinetica is listening as follows:
-
-	# curl http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191
-	Kinetica is running!
-
-Now we need to install the Beam connector API Jar into the Maven repo on the
-edgeNode:
-
-	# mvn install:install-file -Dfile='resources/apache-beam-kineticaio-1.0.jar' -DgroupId='com.kinetica' -DartifactId='apache-beam-kineticaio' -Dversion='1.0' -Dpackaging=jar
-
-
-### Run the Beam job on Spark ###
-
-At the # command prompt of the beam-edge-node container
-
-First, build the the source code with Spark dependencies
-
-	# cd /usr/local/beam/example-project
-	# mvn -Pspark-runner clean package
-
-This builds the JAR (`apache-beam-kineticaio-example-1.0-shaded.jar`) and copies
-it into `/usr/local/beam/resources`.
-
-Now run the beam job:
-
-	# cd /usr/local/beam
-	# cp example-project/target/apache-beam-kineticaio-example-1.0-shaded.jar .
-	# /opt/spark-2.3.1-bin-hadoop2.7/bin/spark-submit --master spark://`getent hosts spark-cluster | cut -d ' ' -f1`:7077 --conf spark.executor.memory=2G --class com.kinetica.beam.example.Test1 apache-beam-kineticaio-example-1.0-shaded.jar --kineticaPassword=admin123 --kineticaTable=scientists --kineticaURL=http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191 --kineticaUsername=admin --runner=SparkRunner
-
-NB We copy the jar as it won't run from a docker mount, at least on Windows WSL
-
-Hit ctrl-D to exit and stop the beam-edge-node container.
-
-Check the Spark UX at http://localhost:8082/ to confirm the job should have run
-successfully and make a note of the ApplicationIDs. There will be 2
-ApplicationIDs for every run - one for the read test (first) and then the write
-test.
-
-To review the job logs:
-
-	$ docker exec -it spark-cluster bash
-
-At the hash prompt in the spark-cluster container, do:
-
-	# cd /opt/spark-2.3.1-bin-hadoop2.7/work/<ApplicationID> # check job logs from here
-
-Also, log in to http://localhost:8080 and in Kinetica GAdmin, check the table
-`scientists` has been created OK and populated with data from the write test.
-
-
-### Run the Beam job on the Direct Runner ###
-
-Start the beam-edge-node container:
-
-	$ cd docker/edgeNode
-	$ ./run.sh
-
-At the # command prompt check you can ping the other containers:
-
-	# ping kinetica-7.1-head
-	# ping kinetica-7.1-worker
-	# ping spark-cluster
-
-Check Kinetica is listening as follows:
-
-	# curl http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191
-
-It should say "Kinetica is running!"
-
-First, build the source code with DirectRunner dependencies:
-
-	# cd /usr/local/beam/example-project
-	# mvn -Pdirect-runner clean package
-
-This builds the JAR (`apache-beam-kineticaio-example-1.0-shaded.jar`) and copies
-it into `/usr/local/beam/resources`.
-
-Now run the beam job:
-
-	# cd /usr/local/beam
-	# cp example-project/target/apache-beam-kineticaio-example-1.0-shaded.jar .
-	# java -cp apache-beam-kineticaio-example-1.0-shaded.jar \
-	com.kinetica.beam.example.Test1 \
-	--kineticaURL="http://`getent hosts kinetica-7.1-head | cut -d ' ' -f1`:9191" \
-	--kineticaUsername=admin \
-	--kineticaPassword=admin123 \
-	--kineticaTable=scientists \
-	--runner=DirectRunner
-
-Hit ctrl-D to exit and stop the beam-edge-node container.
-
+Inside the compose network the database is reachable as `kinetica:9191`; from
+your host it is `http://localhost:9191` (or whatever `KINETICA_HTTP_PORT` is set
+to).
+
+### Run the API integration tests ###
+
+	docker compose exec builder mvn -f api/pom.xml verify -PrunTests
+
+Tests are skipped unless the `runTests` profile is active. Connection settings
+come from the `argLine` property in `api/pom.xml`, which points at the compose
+service by default. To point the tests somewhere else, override it on the
+command line instead of editing the POM:
+
+	docker compose exec builder mvn -f api/pom.xml verify -PrunTests \
+	    -DargLine="-DbeamTestPipelineOptions=[\"--kineticaURL=http://kinetica:9191\", \
+	    \"--kineticaUsername=admin\", \"--kineticaPassword=admin\", \
+	    \"--kineticaTable=scientists\", \"--runner=DirectRunner\"]"
+
+**These tests are destructive.** They clear and recreate the configured table
+(`scientists` by default) before running. Do not point them at a database whose
+contents you care about.
+
+### Run the example on Spark ###
+
+Start the cluster and the edge node:
+
+	docker compose up -d spark-master spark-worker edge-node
+
+Rebuild the example against the Spark runner. The `spark-runner` profile is not
+active by default, and selecting it deactivates `direct-runner`:
+
+	docker compose exec builder mvn -f example/pom.xml -Pspark-runner clean package
+
+Then submit from the edge node:
+
+	docker compose exec edge-node /opt/spark/bin/spark-submit \
+	    --master spark://spark-master:7077 \
+	    --class com.kinetica.beam.example.ExampleBeamPipeline \
+	    --conf spark.driver.host=edge-node \
+	    /workspace/example/target/apache-beam-kineticaio-example-7.2.0.0-shaded.jar \
+	        --kineticaURL=http://kinetica:9191 \
+	        --kineticaUsername=admin \
+	        --kineticaPassword=admin \
+	        --kineticaTable=scientists \
+	        --runner=SparkRunner
+
+	26/07/30 20:29:30 INFO SparkRunner: Batch pipeline execution complete.
+	26/07/30 20:29:30 INFO ExampleBeamPipeline: Example complete!
+
+`spark.driver.host=edge-node` is required: the driver runs on the edge node in
+client mode, and the executors need a resolvable address to connect back to. The
+Spark master UI is at <http://localhost:8082> and the worker UI at
+<http://localhost:8083>.
+
+Note that the Spark version is pinned to 3.1.x on purpose. Beam 2.41.0's
+`beam-runners-spark-3` is compiled against Spark 3.1.2 and declares the Spark
+artifacts `provided`, so the cluster has to supply a compatible runtime; a newer
+Spark is not a drop-in substitute.
+
+### Shut down ###
+
+	docker compose down
+
+Add `-v` to also drop the database persist volume and the Maven cache:
+
+	docker compose down -v
+
+### Notes ###
+
+*	**Java 11 is required.** The POMs require `gpudb-api` 7.2.3.22 or newer, and
+	the Kinetica Java API has been compiled for Java 11 since 7.2.3.7 (7.2.3.6
+	was the last Java 8 build). Building on JDK 8 fails with `class file has
+	wrong version 55.0, should be 52.0`.
+*	**The API and database versions move independently.** The compose file pins
+	the database to 7.2.3.18, the newest published `kinetica/kinetica-cpu` image;
+	the Java API is separately at 7.2.3.22. They do not need to match, and this
+	combination is what the instructions above were verified against.
+*	**The database does not start by default.** The Kinetica image starts only
+	the host manager unless `GPUDB_START_ALL=1` is set, which the compose file
+	does. Without it the container runs but nothing listens on 9191.
+*	**Jackson is pinned to 2.22.1 — do not lower it.** Both POMs import
+	`jackson-bom` at that version, matching the pin `gpudb-api` applies
+	internally as of 7.2.3.22. A project's own dependency management outranks a
+	dependency's, so a lower value here would silently override that pin and
+	reintroduce the advisories it clears; keep the two in step. The block stays
+	even though the API now pins Jackson itself, because without it the resolved
+	version depends on the order of the declared dependencies: `gpudb-api` and
+	`beam-sdks-java-core` both contribute Jackson at the same depth and Beam asks
+	for 2.13.0, so reordering them would quietly drop Jackson to 2.13.0.
+*	**Downgrades fail the build.** Both POMs run the enforcer's
+	`requireUpperBoundDeps` rule, so if a managed dependency resolves below a
+	version something else in the graph requests, the build stops instead of
+	silently shipping the downgrade. The rule is scoped to the artifacts these
+	POMs manage — applying it graph-wide would mean arbitrating Beam's own
+	transitive conflicts. If you add a version pin, expect to add the artifact to
+	the `includes` list too. List artifacts explicitly: a `groupId:*` wildcard
+	matches nothing here and silently disables the check.
+*	**Plugin versions are pinned.** The example pins `maven-shade-plugin` and
+	`maven-jar-plugin` explicitly. Unversioned, they resolve from Maven's default
+	lifecycle bindings and vary by Maven version — with Jackson 2.22.x, Maven
+	3.8.x selects a shade plugin whose ASM cannot read the jar's Java 21
+	`META-INF/versions/21` entries and fails with "Unsupported class file major
+	version 65".
+*	**Running from the host needs care.** The Java client asks the server for its
+	other hosts, and a container reports its compose-internal address. Running
+	against `http://localhost:9191` from outside Docker can therefore fail with a
+	connect timeout to a `172.x` address. Run inside the compose network, as the
+	commands above do.
+*	**Connection failures kill the JVM.** On a `GPUdbException` the connector
+	logs and calls `System.exit(99)`. Under Maven this surfaces as surefire's
+	"The forked VM terminated without properly saying goodbye" — the usual cause
+	is an unreachable database or bad credentials, not a build problem.
 
 
 ## Support
